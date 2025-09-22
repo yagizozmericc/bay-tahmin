@@ -1,125 +1,233 @@
-﻿# React
+# ScoreGuess Pro
 
-A modern React-based project utilizing the latest frontend technologies and tools for building responsive web applications.
+A modern football prediction game platform where users can predict match outcomes, compete in leagues, and track their performance across major football competitions.
 
-## ðŸš€ Features
+## 🎯 Project Overview
 
-- **React 18** - React version with improved rendering and concurrent features
-- **Vite** - Lightning-fast build tool and development server
-- **Redux Toolkit** - State management with simplified Redux setup
-- **TailwindCSS** - Utility-first CSS framework with extensive customization
-- **React Router v6** - Declarative routing for React applications
-- **Data Visualization** - Integrated D3.js and Recharts for powerful data visualization
-- **Form Management** - React Hook Form for efficient form handling
-- **Animation** - Framer Motion for smooth UI animations
-- **Testing** - Jest and React Testing Library setup
+ScoreGuess Pro is a comprehensive football prediction platform that allows users to:
 
-## ðŸ“‹ Prerequisites
+- **Make Predictions**: Predict match scores for Turkish Super League and UEFA Champions League fixtures
+- **Compete in Leagues**: Create or join private leagues with friends and compete for rankings
+- **Track Performance**: Monitor prediction accuracy, points, and global rankings
+- **Live Data Integration**: Real-time match data from TheSportsDB API
+- **User Management**: Complete profile system with statistics and achievements
+- **Authentication**: Secure Firebase-based user authentication
+
+The platform fetches live football data from TheSportsDB API and provides an engaging prediction experience with comprehensive scoring systems and league management features.
+
+## 🚀 Tech Stack
+
+### Frontend Framework
+- **React 18** - Modern React with concurrent features and improved rendering
+- **Vite 5.0** - Lightning-fast build tool and development server
+- **React Router v6** - Declarative routing for single-page application
+
+### State Management
+- **Redux Toolkit** - Simplified Redux setup for predictable state management
+- **React Hook Form** - Efficient form handling and validation
+
+### Styling & UI
+- **Tailwind CSS 3.4** - Utility-first CSS framework with extensive customization
+- **Tailwind Plugins**:
+  - Forms plugin for enhanced form styling
+  - Typography plugin for consistent text styling
+  - Aspect ratio plugin for responsive elements
+  - Container queries for component-specific responsive design
+  - Fluid typography for responsive text scaling
+  - Animation utilities for smooth transitions
+- **Framer Motion** - Production-ready motion library for React
+- **Lucide React** - Beautiful & consistent icon library
+- **Class Variance Authority** - Building type-safe component variants
+
+### Data Visualization
+- **D3.js 7.9** - Powerful data visualization library
+- **Recharts 2.15** - Composable charting library built on React components
+
+### Backend Services
+- **Firebase 11.10** - Complete backend-as-a-service platform
+  - Authentication (Email/Password)
+  - Cloud Firestore for data storage
+  - Hosting for deployment
+- **TheSportsDB API** - Live football data integration
+- **Axios** - Promise-based HTTP client for API requests
+
+### Development Tools
+- **TypeScript Support** - Enhanced development experience with type checking
+- **PostCSS** - CSS processing with autoprefixer
+- **ESLint** - Code linting for consistent code quality
+- **Testing Library** - React Testing Library with Jest for component testing
+
+### Deployment
+- **Firebase Hosting** - Fast and secure web hosting
+- **Vite Build** - Optimized production builds with source maps
+
+## 📋 Prerequisites
 
 - Node.js (v14.x or higher)
 - npm or yarn
+- Firebase project (for authentication and hosting)
+- TheSportsDB API key (optional, uses demo key by default)
 
-## ðŸ› ï¸ Installation
+## 🛠️ Installation
 
-1. Install dependencies:
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd pred-game
+   ```
+
+2. Install dependencies:
    ```bash
    npm install
-   # or
-   yarn install
    ```
-   
-2. Start the development server:
+
+3. Configure environment variables:
+   Create a `.env.local` file with your Firebase configuration:
+   ```env
+   VITE_FIREBASE_API_KEY=your_firebase_api_key
+   VITE_FIREBASE_PROJECT_ID=your_project_id
+   VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
+   VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   VITE_FIREBASE_APP_ID=your_app_id
+   VITE_THESPORTSDB_API_KEY=your_api_key
+   VITE_THESPORTSDB_API_URL=https://www.thesportsdb.com/api/v1/json
+   ```
+
+4. Start the development server:
    ```bash
    npm start
-   # or
-   yarn start
    ```
 
-## ðŸ“ Project Structure
+## 📁 Project Structure
 
 ```
-react_app/
-â”œâ”€â”€ public/             # Static assets
-â”œâ”€â”€ src/
-â”‚   â”œâ”€â”€ components/     # Reusable UI components
-â”‚   â”œâ”€â”€ pages/          # Page components
-â”‚   â”œâ”€â”€ styles/         # Global styles and Tailwind configuration
-â”‚   â”œâ”€â”€ App.jsx         # Main application component
-â”‚   â”œâ”€â”€ Routes.jsx      # Application routes
-â”‚   â””â”€â”€ index.jsx       # Application entry point
-â”œâ”€â”€ .env                # Environment variables
-â”œâ”€â”€ index.html          # HTML template
-â”œâ”€â”€ package.json        # Project dependencies and scripts
-â”œâ”€â”€ tailwind.config.js  # Tailwind CSS configuration
-â””â”€â”€ vite.config.js      # Vite configuration
+pred-game/
+├── public/                 # Static assets
+│   ├── assets/            # Icons, manifest, and other static files
+│   └── index.html         # HTML template
+├── src/
+│   ├── components/        # Reusable UI components
+│   │   ├── ui/           # Base UI components (Button, Input, etc.)
+│   │   ├── AppIcon.jsx   # Icon component
+│   │   └── AppImage.jsx  # Image component
+│   ├── pages/            # Page components
+│   │   ├── auth/         # Authentication pages (Login, Register)
+│   │   ├── user-dashboard/      # Dashboard with upcoming matches
+│   │   ├── match-predictions/   # Match prediction interface
+│   │   ├── league-management/   # League creation and management
+│   │   ├── league-leaderboards/ # League rankings and statistics
+│   │   └── user-profile/        # User profile and settings
+│   ├── hooks/            # Custom React hooks
+│   ├── services/         # API services and data layer
+│   ├── context/          # React context providers
+│   ├── styles/           # Global styles and Tailwind configuration
+│   ├── utils/            # Utility functions
+│   ├── App.jsx           # Main application component
+│   └── index.jsx         # Application entry point
+├── .env.local            # Environment variables
+├── firebase.json         # Firebase configuration
+├── package.json          # Project dependencies and scripts
+├── tailwind.config.js    # Tailwind CSS configuration
+└── vite.config.mjs       # Vite configuration
 ```
 
-## ðŸ§© Adding Routes
+## 🏈 Features
 
-To add new routes to the application, update the `Routes.jsx` file:
+### Match Predictions
+- Live fixture data from Turkish Super League and UEFA Champions League
+- Score prediction with auto-save functionality
+- Goal scorer predictions
+- Real-time scoring system based on prediction accuracy
 
-```jsx
-import { useRoutes } from "react-router-dom";
-import HomePage from "pages/HomePage";
-import AboutPage from "pages/AboutPage";
+### League Management
+- Create private leagues with custom settings
+- Invite friends via unique league codes
+- Member management and league administration
+- Custom scoring rules and competition formats
 
-const ProjectRoutes = () => {
-  let element = useRoutes([
-    { path: "/", element: <HomePage /> },
-    { path: "/about", element: <AboutPage /> },
-    // Add more routes as needed
-  ]);
+### User Dashboard
+- Upcoming matches overview
+- Recent prediction results
+- Performance statistics and trends
+- Quick actions for league management
 
-  return element;
-};
-```
+### User Profile
+- Comprehensive statistics tracking
+- Achievement system with badges
+- Customizable notification preferences
+- Profile customization options
 
-## ðŸŽ¨ Styling
+### Authentication
+- Secure Firebase Authentication
+- Email/password registration and login
+- Protected routes and user session management
 
-This project uses Tailwind CSS for styling. The configuration includes:
+## 🎮 Usage
 
-- Forms plugin for form styling
-- Typography plugin for text styling
-- Aspect ratio plugin for responsive elements
-- Container queries for component-specific responsive design
-- Fluid typography for responsive text
-- Animation utilities
+1. **Register/Login**: Create an account or sign in to access the platform
+2. **Make Predictions**: Navigate to match predictions to forecast upcoming games
+3. **Join/Create Leagues**: Compete with friends in private leagues
+4. **Track Performance**: Monitor your accuracy and rankings in your profile
+5. **View Leaderboards**: Check league standings and compare with other players
 
-## ðŸ“± Responsive Design
+## 🔧 API Integration
 
-The app is built with responsive design using Tailwind CSS breakpoints.
+### TheSportsDB Integration
+The application integrates with TheSportsDB for live football data:
+- Fetches fixtures for Turkish Super League (ID: 4339) and UEFA Champions League (ID: 4480)
+- Falls back to season data when next fixtures are unavailable
+- Filters and normalizes data for consistent UI presentation
+- Supports both free (demo key "3") and paid API tiers
 
+### Firebase Services
+- **Authentication**: Email/password authentication with session management
+- **Firestore**: User data, predictions, and league information storage
+- **Hosting**: Production deployment platform
 
-## ðŸ“¦ Deployment
+## 📱 Responsive Design
 
-Build the application for production:
+The application is fully responsive and optimized for:
+- Desktop computers (1920px and above)
+- Laptops and tablets (768px - 1919px)
+- Mobile devices (320px - 767px)
 
-```bash
-npm run build
-```
+Built with mobile-first approach using Tailwind CSS breakpoints.
 
-## ðŸ™ Acknowledgments
+## 🚀 Deployment
 
-- Built with [Rocket.new](https://rocket.new)
-- Powered by React and Vite
-- Styled with Tailwind CSS
+1. Build the application:
+   ```bash
+   npm run build
+   ```
 
-Built with â¤ï¸ on Rocket.new
-## Match Predictions Data Integration
+2. Deploy to Firebase Hosting:
+   ```bash
+   firebase deploy
+   ```
 
-The match predictions view now sources fixtures from [TheSportsDB](https://www.thesportsdb.com/documentation) (also accessible through TheDataDB). The free tier allows unauthenticated access with the demo key `3`, which is bundled by default. To use your own key:
+The application is configured for Firebase Hosting with proper routing and caching headers.
 
-1. Create a free account and request an API key from TheSportsDB / TheDataDB dashboard.
-2. Update `.env.local` with:
-   - `VITE_THESPORTSDB_API_KEY=<your-key>`
-   - `VITE_THESPORTSDB_API_URL=https://www.thesportsdb.com/api/v1/json` (or the TheDataDB host if you prefer)
-3. Restart the Vite dev server so the new environment variables are picked up.
+## 🤝 Contributing
 
-Only the Turkish Super Lig (league id `4339`) and UEFA Champions League (league id `4480`) are fetched on the match predictions page to stay within the free-plan limits. The app combines the `/eventsnextleague.php` responses for those leagues and normalizes the data for the UI.
-The client falls back to `eventsseason.php` when `eventsnextleague.php` does not expose upcoming fixtures (common for UEFA competitions during the off-season), then trims to future dates before returning results. Quick filters on the match predictions page now toggle between the two supported competitions or status shortcuts without requiring a manual refresh.
-User dashboard widgets (upcoming fixtures, recent results, quick actions) now reuse the same data feed, so the homepage reflects live Turkish Super Lig and UEFA Champions League schedules generated from TheSportsDB responses.
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
+## 📄 License
 
-## Firebase Authentication
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-Email/password authentication is wired through Firebase Auth. Update `.env.local` with your Firebase project values (`VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID`, optional `VITE_FIREBASE_APP_ID`, etc.) and restart the Vite dev server after editing. New `/login` and `/register` routes use the shared UI kit and talk to Firebase. The header now reflects the current auth state and exposes a sign-out action.
+## 🙏 Acknowledgments
+
+- [TheSportsDB](https://www.thesportsdb.com/) for providing football data API
+- [Firebase](https://firebase.google.com/) for backend services
+- [Tailwind CSS](https://tailwindcss.com/) for the styling framework
+- [React](https://reactjs.org/) team for the amazing framework
+- [Vite](https://vitejs.dev/) for the blazing fast build tool
+
+---
+
+Built with ❤️ for football prediction enthusiasts
