@@ -4,15 +4,24 @@ import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import Button from '../../../components/ui/Button';
+import { updateUserProfile } from '../../../services/userProfileService';
 
 const ProfileForm = ({ user, onSave }) => {
   const [formData, setFormData] = useState({
-    username: user?.username,
-    email: user?.email,
-    firstName: user?.firstName,
-    lastName: user?.lastName,
-    preferredCompetitions: user?.preferredCompetitions,
-    notifications: user?.notifications
+    username: user?.username || '',
+    email: user?.email || '',
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+    bio: user?.bio || '',
+    location: user?.location || '',
+    favoriteTeam: user?.favoriteTeam || '',
+    preferredCompetitions: user?.preferredCompetitions || [],
+    notifications: user?.notifications || {
+      matchReminders: true,
+      leagueUpdates: true,
+      achievements: true,
+      weeklySummary: false
+    }
   });
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
@@ -24,6 +33,25 @@ const ProfileForm = ({ user, onSave }) => {
     { value: 'la-liga', label: 'La Liga' },
     { value: 'bundesliga', label: 'Bundesliga' },
     { value: 'serie-a', label: 'Serie A' }
+  ];
+
+  const teamOptions = [
+    { value: 'galatasaray', label: 'Galatasaray' },
+    { value: 'fenerbahce', label: 'Fenerbahçe' },
+    { value: 'besiktas', label: 'Beşiktaş' },
+    { value: 'trabzonspor', label: 'Trabzonspor' },
+    { value: 'real-madrid', label: 'Real Madrid' },
+    { value: 'barcelona', label: 'Barcelona' },
+    { value: 'manchester-united', label: 'Manchester United' },
+    { value: 'manchester-city', label: 'Manchester City' },
+    { value: 'liverpool', label: 'Liverpool' },
+    { value: 'arsenal', label: 'Arsenal' },
+    { value: 'chelsea', label: 'Chelsea' },
+    { value: 'bayern-munich', label: 'Bayern Munich' },
+    { value: 'juventus', label: 'Juventus' },
+    { value: 'ac-milan', label: 'AC Milan' },
+    { value: 'inter-milan', label: 'Inter Milan' },
+    { value: 'psg', label: 'Paris Saint-Germain' }
   ];
 
   const handleInputChange = (field, value) => {
@@ -46,14 +74,25 @@ const ProfileForm = ({ user, onSave }) => {
   const handleSave = async () => {
     setIsSaving(true);
     setSaveMessage('');
-    
-    // Mock save delay
-    setTimeout(() => {
+
+    try {
+      // Save to Firebase
+      if (user?.uid) {
+        await updateUserProfile(user.uid, formData);
+      }
+
+      // Update parent component state
       onSave(formData);
-      setIsSaving(false);
+
       setSaveMessage('Profile updated successfully!');
       setTimeout(() => setSaveMessage(''), 3000);
-    }, 1000);
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      setSaveMessage('Failed to save profile. Please try again.');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -94,6 +133,36 @@ const ProfileForm = ({ user, onSave }) => {
             type="text"
             value={formData?.lastName}
             onChange={(e) => handleInputChange('lastName', e?.target?.value)}
+          />
+        </div>
+
+        <div className="mt-4">
+          <Input
+            label="Bio"
+            type="textarea"
+            value={formData?.bio}
+            onChange={(e) => handleInputChange('bio', e?.target?.value)}
+            placeholder="Tell us about yourself..."
+            rows={3}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <Input
+            label="Location"
+            type="text"
+            value={formData?.location}
+            onChange={(e) => handleInputChange('location', e?.target?.value)}
+            placeholder="e.g. Istanbul, Turkey"
+          />
+
+          <Select
+            label="Favorite Team"
+            options={teamOptions}
+            value={formData?.favoriteTeam}
+            onChange={(value) => handleInputChange('favoriteTeam', value)}
+            placeholder="Select your favorite team"
+            searchable
           />
         </div>
       </div>

@@ -4,9 +4,10 @@ import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import Button from '../../../components/ui/Button';
+import ThemeSelector from '../../../components/ui/ThemeSelector';
 
 const SettingsPanel = ({ settings, onSettingsUpdate }) => {
-  const [activeSection, setActiveSection] = useState('security');
+  const [activeSection, setActiveSection] = useState('appearance');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -14,14 +15,11 @@ const SettingsPanel = ({ settings, onSettingsUpdate }) => {
     confirmPassword: ''
   });
   const [privacySettings, setPrivacySettings] = useState(settings?.privacy);
-  const [isExporting, setIsExporting] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const sections = [
+    { id: 'appearance', label: 'Appearance', icon: 'Palette' },
     { id: 'security', label: 'Security', icon: 'Shield' },
-    { id: 'privacy', label: 'Privacy', icon: 'Eye' },
-    { id: 'data', label: 'Data & Export', icon: 'Download' },
-    { id: 'danger', label: 'Danger Zone', icon: 'AlertTriangle' }
+    { id: 'privacy', label: 'Privacy', icon: 'Eye' }
   ];
 
   const languageOptions = [
@@ -59,23 +57,7 @@ const SettingsPanel = ({ settings, onSettingsUpdate }) => {
     onSettingsUpdate({ ...settings, privacy: updated });
   };
 
-  const handleDataExport = async () => {
-    setIsExporting(true);
-    // Mock export delay
-    setTimeout(() => {
-      setIsExporting(false);
-      alert('Data export completed. Check your downloads folder.');
-    }, 3000);
-  };
 
-  const handleAccountDeletion = () => {
-    if (showDeleteConfirm) {
-      alert('Account deletion initiated. You will receive a confirmation email.');
-      setShowDeleteConfirm(false);
-    } else {
-      setShowDeleteConfirm(true);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -98,6 +80,46 @@ const SettingsPanel = ({ settings, onSettingsUpdate }) => {
           ))}
         </div>
       </div>
+
+      {/* Appearance Section */}
+      {activeSection === 'appearance' && (
+        <div className="space-y-6">
+          {/* Theme Selection */}
+          <div className="bg-card border border-border rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center space-x-2">
+              <Icon name="Palette" size={20} className="text-primary" />
+              <span>Theme & Appearance</span>
+            </h3>
+
+            <ThemeSelector showLabels={true} />
+          </div>
+
+          {/* Localization */}
+          <div className="bg-card border border-border rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center space-x-2">
+              <Icon name="Globe" size={20} className="text-primary" />
+              <span>Localization</span>
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Select
+                label="Language"
+                options={languageOptions}
+                value={settings?.language}
+                onChange={(value) => onSettingsUpdate({ ...settings, language: value })}
+              />
+
+              <Select
+                label="Timezone"
+                options={timezoneOptions}
+                value={settings?.timezone}
+                onChange={(value) => onSettingsUpdate({ ...settings, timezone: value })}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Security Section */}
       {activeSection === 'security' && (
         <div className="space-y-6">
@@ -258,141 +280,6 @@ const SettingsPanel = ({ settings, onSettingsUpdate }) => {
             </div>
           </div>
 
-          {/* Localization */}
-          <div className="bg-card border border-border rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center space-x-2">
-              <Icon name="Globe" size={20} className="text-primary" />
-              <span>Localization</span>
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Select
-                label="Language"
-                options={languageOptions}
-                value={settings?.language}
-                onChange={(value) => onSettingsUpdate({ ...settings, language: value })}
-              />
-              
-              <Select
-                label="Timezone"
-                options={timezoneOptions}
-                value={settings?.timezone}
-                onChange={(value) => onSettingsUpdate({ ...settings, timezone: value })}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Data & Export Section */}
-      {activeSection === 'data' && (
-        <div className="space-y-6">
-          {/* Data Export */}
-          <div className="bg-card border border-border rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center space-x-2">
-              <Icon name="Download" size={20} className="text-primary" />
-              <span>Export Your Data</span>
-            </h3>
-            
-            <p className="text-sm text-muted-foreground mb-4">
-              Download a copy of all your data including predictions, statistics, and account information.
-            </p>
-            
-            <Button
-              variant="outline"
-              loading={isExporting}
-              onClick={handleDataExport}
-              iconName="Download"
-              iconPosition="left"
-            >
-              {isExporting ? 'Preparing Export...' : 'Export Data'}
-            </Button>
-          </div>
-
-          {/* Data Usage */}
-          <div className="bg-card border border-border rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center space-x-2">
-              <Icon name="BarChart3" size={20} className="text-primary" />
-              <span>Data Usage</span>
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-muted/30 rounded-lg">
-                <div className="text-2xl font-bold text-foreground">2.4 MB</div>
-                <div className="text-sm text-muted-foreground">Profile Data</div>
-              </div>
-              <div className="text-center p-4 bg-muted/30 rounded-lg">
-                <div className="text-2xl font-bold text-foreground">15.7 MB</div>
-                <div className="text-sm text-muted-foreground">Predictions</div>
-              </div>
-              <div className="text-center p-4 bg-muted/30 rounded-lg">
-                <div className="text-2xl font-bold text-foreground">8.3 MB</div>
-                <div className="text-sm text-muted-foreground">Media Files</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Danger Zone */}
-      {activeSection === 'danger' && (
-        <div className="space-y-6">
-          {/* Account Deletion */}
-          <div className="bg-card border border-destructive rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-destructive mb-4 flex items-center space-x-2">
-              <Icon name="AlertTriangle" size={20} />
-              <span>Delete Account</span>
-            </h3>
-            
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Once you delete your account, there is no going back. Please be certain.
-              </p>
-              
-              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
-                <h4 className="font-medium text-destructive mb-2">This action will:</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Permanently delete your profile and account data</li>
-                  <li>• Remove all your predictions and statistics</li>
-                  <li>• Remove you from all leagues</li>
-                  <li>• Delete all your achievements and progress</li>
-                </ul>
-              </div>
-              
-              {showDeleteConfirm && (
-                <div className="bg-warning/10 border border-warning/20 rounded-lg p-4">
-                  <p className="text-sm text-warning font-medium mb-2">
-                    Are you absolutely sure? This cannot be undone.
-                  </p>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={handleAccountDeletion}
-                    >
-                      Yes, Delete My Account
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowDeleteConfirm(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-              
-              {!showDeleteConfirm && (
-                <Button
-                  variant="destructive"
-                  onClick={() => setShowDeleteConfirm(true)}
-                  iconName="Trash2"
-                  iconPosition="left"
-                >
-                  Delete Account
-                </Button>
-              )}
-            </div>
-          </div>
         </div>
       )}
     </div>

@@ -8,7 +8,6 @@ import FilterControls from './components/FilterControls';
 import PredictionSummary from './components/PredictionSummary';
 import ConfirmationDialog from './components/ConfirmationDialog';
 import { useMatches, COMPETITIONS } from '../../hooks/useMatches';
-import { footballApi } from '../../services/footballApi';
 import { savePrediction, getUserPredictions } from '../../services/predictionService';
 import { useAuth } from '../../context/AuthContext';
 
@@ -478,19 +477,6 @@ const MatchPredictions = () => {
     setConfirmDialog({ isOpen: false });
   }, [predictions, userId, showFeedback]);
 
-  const handleTestApi = async () => {
-    try {
-      const result = await footballApi.testApiAccess();
-      if (result.success) {
-        showFeedback('success', 'API test completed successfully.');
-      } else {
-        showFeedback('error', result.message || 'API test failed.');
-      }
-    } catch (apiError) {
-      console.error('Test API error:', apiError);
-      showFeedback('error', apiError?.message || 'API test failed.');
-    }
-  };
 
   const getFilteredMatches = useCallback(() => {
     let filtered = [...(matches || [])];
@@ -595,22 +581,6 @@ const MatchPredictions = () => {
                   })}
                 </div>
               </div>
-              <Button
-                variant="outline"
-                iconName="RefreshCw"
-                iconPosition="left"
-                onClick={refetch}
-              >
-                Refresh
-              </Button>
-              <Button
-                variant="outline"
-                iconName="Bug"
-                iconPosition="left"
-                onClick={handleTestApi}
-              >
-                Test API
-              </Button>
             </div>
           </div>
 

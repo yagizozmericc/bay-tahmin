@@ -7,6 +7,7 @@ export default {
       "./index.html",
       "./src/**/*.{js,ts,jsx,tsx}",
     ],
+    darkMode: 'class',
     theme: {
       extend: {
         colors: {
@@ -83,7 +84,10 @@ export default {
           'scale-in': 'scaleIn 150ms ease-in-out',
           'fade-in': 'fadeIn 200ms ease-out',
           'slide-up': 'slideUp 200ms ease-out',
-          'shimmer': 'shimmer 2s linear infinite'
+          'shimmer': 'shimmer 2s linear infinite',
+          'logo-glow': 'logoGlow 3s ease-in-out infinite',
+          'gradient-shift': 'gradientShift 4s ease-in-out infinite',
+          'float': 'float 6s ease-in-out infinite'
         },
         keyframes: {
           scaleIn: {
@@ -101,6 +105,18 @@ export default {
           shimmer: {
             '0%': { transform: 'translateX(-100%)' },
             '100%': { transform: 'translateX(100%)' }
+          },
+          logoGlow: {
+            '0%, 100%': { boxShadow: '0 0 15px rgba(34, 197, 94, 0.2)' },
+            '50%': { boxShadow: '0 0 20px rgba(255, 111, 0, 0.3), 0 0 25px rgba(34, 197, 94, 0.15)' }
+          },
+          gradientShift: {
+            '0%, 100%': { backgroundPosition: '0% 50%' },
+            '50%': { backgroundPosition: '100% 50%' }
+          },
+          float: {
+            '0%, 100%': { transform: 'translateY(0px)' },
+            '50%': { transform: 'translateY(-2px)' }
           }
         },
         spacing: {

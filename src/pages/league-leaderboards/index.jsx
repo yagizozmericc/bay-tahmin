@@ -146,6 +146,7 @@ const LeaderboardsPage = () => {
             </div>
           )}
 
+
           {/* Filters */}
           <LeaderboardFilters
             selectedLeague={selectedLeague}

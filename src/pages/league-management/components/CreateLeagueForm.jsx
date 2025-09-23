@@ -4,8 +4,11 @@ import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
 import { Checkbox } from '../../../components/ui/Checkbox';
+import { createLeague } from '../../../services/leagueService';
+import { useAuth } from '../../../context/AuthContext';
 
 const CreateLeagueForm = ({ onCreateLeague, onCancel }) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -13,13 +16,14 @@ const CreateLeagueForm = ({ onCreateLeague, onCancel }) => {
     isPrivate: false,
     maxMembers: 20,
     scoringRules: {
-      correctWinner: 1,
-      exactScore: 3,
-      correctScorer: 1
+      correctResult: 3,
+      exactScore: 10,
+      correctScorer: 2
     }
   });
 
   const [errors, setErrors] = useState({});
+  const [isCreating, setIsCreating] = useState(false);
 
   const competitionOptions = [
     { value: 'champions-league', label: 'UEFA Champions League' },
@@ -85,17 +89,44 @@ const CreateLeagueForm = ({ onCreateLeague, onCancel }) => {
     return Object.keys(newErrors)?.length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e?.preventDefault();
-    
-    if (validateForm()) {
-      onCreateLeague(formData);
+
+    if (!validateForm()) {
+      return;
+    }
+
+    if (!user?.uid) {
+      setErrors({ general: 'You must be signed in to create a league' });
+      return;
+    }
+
+    setIsCreating(true);
+    setErrors({});
+
+    try {
+      const newLeague = await createLeague(
+        formData,
+        user.uid,
+        user.displayName || user.email?.split('@')[0] || 'User',
+        user.email || ''
+      );
+
+      // Call parent callback with the created league
+      onCreateLeague(newLeague);
+    } catch (error) {
+      console.error('Error creating league:', error);
+      setErrors({
+        general: error.message || 'Failed to create league. Please try again.'
+      });
+    } finally {
+      setIsCreating(false);
     }
   };
 
   const calculateTotalPoints = () => {
-    const { correctWinner, exactScore, correctScorer } = formData?.scoringRules;
-    return correctWinner + exactScore + correctScorer;
+    const { correctResult, exactScore, correctScorer } = formData?.scoringRules;
+    return correctResult + exactScore + correctScorer;
   };
 
   return (
@@ -105,6 +136,16 @@ const CreateLeagueForm = ({ onCreateLeague, onCancel }) => {
         <h2 className="text-xl font-semibold text-foreground">Create New League</h2>
       </div>
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* General Error Message */}
+        {errors.general && (
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+            <div className="flex items-center space-x-2">
+              <Icon name="AlertCircle" size={16} className="text-destructive" />
+              <span className="text-sm text-destructive">{errors.general}</span>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Basic Information */}
           <div className="space-y-4">
@@ -171,14 +212,14 @@ const CreateLeagueForm = ({ onCreateLeague, onCancel }) => {
               <h4 className="text-sm font-medium text-foreground mb-3">Scoring Rules</h4>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Correct Winner</span>
+                  <span className="text-sm text-muted-foreground">Correct Result</span>
                   <input
                     type="number"
                     min="0"
                     max="10"
                     className="w-16 px-2 py-1 text-sm border border-border rounded bg-input text-foreground"
-                    value={formData?.scoringRules?.correctWinner}
-                    onChange={(e) => handleScoringRuleChange('correctWinner', e?.target?.value)}
+                    value={formData?.scoringRules?.correctResult}
+                    onChange={(e) => handleScoringRuleChange('correctResult', e?.target?.value)}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -227,10 +268,12 @@ const CreateLeagueForm = ({ onCreateLeague, onCancel }) => {
           <Button
             type="submit"
             variant="default"
-            iconName="Plus"
+            iconName={isCreating ? "Loader2" : "Plus"}
             iconPosition="left"
+            loading={isCreating}
+            disabled={isCreating}
           >
-            Create League
+            {isCreating ? 'Creating League...' : 'Create League'}
           </Button>
         </div>
       </form>

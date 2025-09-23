@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet';
+import Header from '../../components/ui/Header';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
 import LeagueCard from './components/LeagueCard';
@@ -7,8 +8,11 @@ import CreateLeagueForm from './components/CreateLeagueForm';
 import JoinLeagueSection from './components/JoinLeagueSection';
 import MemberManagementModal from './components/MemberManagementModal';
 import InviteModal from './components/InviteModal';
+import { getUserLeagues, deleteLeague } from '../../services/leagueService';
+import { useAuth } from '../../context/AuthContext';
 
 const LeagueManagement = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('my-leagues');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedLeague, setSelectedLeague] = useState(null);
@@ -17,63 +21,10 @@ const LeagueManagement = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [leagueToDelete, setLeagueToDelete] = useState(null);
 
-  // Mock leagues data
-  const [myLeagues, setMyLeagues] = useState([
-    {
-      id: 'league-1',
-      name: 'Champions League Elite',
-      description: 'Exclusive league for Champions League predictions with advanced scoring system',
-      competition: 'UEFA Champions League',
-      memberCount: 24,
-      maxMembers: 30,
-      currentLeader: 'FootballGuru',
-      leaderPoints: 127,
-      createdDate: '2024-09-15',
-      isPrivate: true,
-      isOwner: true,
-      scoringRules: {
-        correctWinner: 1,
-        exactScore: 3,
-        correctScorer: 1
-      }
-    },
-    {
-      id: 'league-2',
-      name: 'Turkish Super League Masters',
-      description: 'Weekly predictions for Turkish Super League matches with friends',
-      competition: 'Turkish Super League',
-      memberCount: 18,
-      maxMembers: 25,
-      currentLeader: 'GalatasarayFan',
-      leaderPoints: 89,
-      createdDate: '2024-09-10',
-      isPrivate: false,
-      isOwner: true,
-      scoringRules: {
-        correctWinner: 1,
-        exactScore: 3,
-        correctScorer: 1
-      }
-    },
-    {
-      id: 'league-3',
-      name: 'Office Predictions',
-      description: 'Friendly competition between colleagues for Premier League matches',
-      competition: 'Premier League',
-      memberCount: 12,
-      maxMembers: 20,
-      currentLeader: 'OfficeChamp',
-      leaderPoints: 156,
-      createdDate: '2024-09-08',
-      isPrivate: true,
-      isOwner: false,
-      scoringRules: {
-        correctWinner: 1,
-        exactScore: 3,
-        correctScorer: 1
-      }
-    }
-  ]);
+  // Real Firestore data
+  const [myLeagues, setMyLeagues] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const tabs = [
     { id: 'my-leagues', label: 'My Leagues', icon: 'Trophy', count: myLeagues?.length },
@@ -81,31 +32,40 @@ const LeagueManagement = () => {
     { id: 'join', label: 'Join League', icon: 'UserPlus', count: null }
   ];
 
-  const handleCreateLeague = (leagueData) => {
-    const newLeague = {
-      id: `league-${Date.now()}`,
-      ...leagueData,
-      memberCount: 1,
-      currentLeader: 'You',
-      leaderPoints: 0,
-      createdDate: new Date()?.toISOString()?.split('T')?.[0],
-      isOwner: true
-    };
+  // Load user's leagues
+  useEffect(() => {
+    if (user?.uid) {
+      loadUserLeagues();
+    } else {
+      setLoading(false);
+      setMyLeagues([]);
+    }
+  }, [user?.uid]);
 
+  const loadUserLeagues = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const leagues = await getUserLeagues(user.uid);
+      setMyLeagues(leagues);
+    } catch (err) {
+      console.error('Error loading leagues:', err);
+      setError('Failed to load your leagues');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateLeague = (newLeague) => {
+    // Add the new league to the list
     setMyLeagues(prev => [newLeague, ...prev]);
     setShowCreateForm(false);
     setActiveTab('my-leagues');
   };
 
   const handleJoinLeague = (league) => {
-    // Add league to user's leagues (simulate joining)
-    const joinedLeague = {
-      ...league,
-      isOwner: false,
-      memberCount: league?.memberCount + 1
-    };
-
-    setMyLeagues(prev => [joinedLeague, ...prev]);
+    // Refresh the user's leagues after joining
+    loadUserLeagues();
     setActiveTab('my-leagues');
   };
 
@@ -119,9 +79,16 @@ const LeagueManagement = () => {
     setShowDeleteConfirm(true);
   };
 
-  const confirmDeleteLeague = () => {
-    if (leagueToDelete) {
+  const confirmDeleteLeague = async () => {
+    if (!leagueToDelete || !user?.uid) return;
+
+    try {
+      await deleteLeague(leagueToDelete.id, user.uid);
       setMyLeagues(prev => prev?.filter(league => league?.id !== leagueToDelete?.id));
+    } catch (err) {
+      console.error('Error deleting league:', err);
+      setError('Failed to delete league');
+    } finally {
       setLeagueToDelete(null);
       setShowDeleteConfirm(false);
     }
@@ -163,6 +130,31 @@ const LeagueManagement = () => {
 
     if (activeTab === 'join') {
       return <JoinLeagueSection onJoinLeague={handleJoinLeague} />;
+    }
+
+    // Loading state
+    if (loading) {
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center justify-center py-12">
+            <Icon name="Loader2" size={48} className="text-primary mx-auto mb-4 animate-spin" />
+          </div>
+        </div>
+      );
+    }
+
+    // Error state
+    if (error) {
+      return (
+        <div className="space-y-6">
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 text-center">
+            <Icon name="AlertCircle" size={48} className="text-destructive mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">Error Loading Leagues</h3>
+            <p className="text-muted-foreground mb-6">{error}</p>
+            <Button onClick={loadUserLeagues}>Try Again</Button>
+          </div>
+        </div>
+      );
     }
 
     return (
@@ -265,6 +257,9 @@ const LeagueManagement = () => {
         <title>League Management - Bay Tahmin Pro</title>
         <meta name="description" content="Create and manage your prediction leagues. Compete with friends in custom football prediction competitions." />
       </Helmet>
+
+      <Header />
+
       <div className="min-h-screen bg-background pt-16 lg:pt-20 pb-20 lg:pb-6">
         <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6">
           {/* Mobile Tab Selector */}

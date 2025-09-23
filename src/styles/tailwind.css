@@ -6,50 +6,97 @@
 
 @layer base {
   :root {
-    /* Core Colors */
+    /* Light Theme Colors */
     --color-background: #FAFAFA; /* warm off-white */
     --color-foreground: #212121; /* near-black */
     --color-border: #E0E0E0; /* light gray */
     --color-input: #FFFFFF; /* pure white */
     --color-ring: #1B5E20; /* deep forest green */
-    
+
     /* Card Colors */
     --color-card: #FFFFFF; /* pure white */
     --color-card-foreground: #212121; /* near-black */
-    
+
     /* Popover Colors */
     --color-popover: #FFFFFF; /* pure white */
     --color-popover-foreground: #212121; /* near-black */
-    
+
     /* Muted Colors */
     --color-muted: #F5F5F5; /* light gray */
     --color-muted-foreground: #757575; /* medium gray */
-    
+
     /* Primary Colors */
     --color-primary: #1B5E20; /* deep forest green */
     --color-primary-foreground: #FFFFFF; /* white */
-    
+
     /* Secondary Colors */
     --color-secondary: #2E7D32; /* lighter green */
     --color-secondary-foreground: #FFFFFF; /* white */
-    
+
     /* Accent Colors */
     --color-accent: #FF6F00; /* vibrant orange */
     --color-accent-foreground: #FFFFFF; /* white */
-    
+
     /* Success Colors */
     --color-success: #388E3C; /* balanced green */
     --color-success-foreground: #FFFFFF; /* white */
-    
+
     /* Warning Colors */
     --color-warning: #F57C00; /* warm amber */
     --color-warning-foreground: #FFFFFF; /* white */
-    
+
     /* Error/Destructive Colors */
     --color-error: #D32F2F; /* clear red */
     --color-error-foreground: #FFFFFF; /* white */
     --color-destructive: #D32F2F; /* clear red */
     --color-destructive-foreground: #FFFFFF; /* white */
+  }
+
+  .dark {
+    /* Dark Theme Colors */
+    --color-background: #0a0a0a; /* very dark */
+    --color-foreground: #fafafa; /* very light */
+    --color-border: #262626; /* dark gray */
+    --color-input: #171717; /* dark input background */
+    --color-ring: #22c55e; /* brighter green for dark mode */
+
+    /* Card Colors */
+    --color-card: #171717; /* dark card background */
+    --color-card-foreground: #fafafa; /* light text on dark */
+
+    /* Popover Colors */
+    --color-popover: #171717; /* dark popover background */
+    --color-popover-foreground: #fafafa; /* light text on dark */
+
+    /* Muted Colors */
+    --color-muted: #262626; /* darker gray */
+    --color-muted-foreground: #a3a3a3; /* lighter gray text */
+
+    /* Primary Colors */
+    --color-primary: #22c55e; /* brighter green for dark mode */
+    --color-primary-foreground: #0a0a0a; /* dark text on bright green */
+
+    /* Secondary Colors */
+    --color-secondary: #16a34a; /* adjusted green for dark mode */
+    --color-secondary-foreground: #fafafa; /* light text */
+
+    /* Accent Colors */
+    --color-accent: #f97316; /* adjusted orange for dark mode */
+    --color-accent-foreground: #fafafa; /* light text */
+
+    /* Success Colors */
+    --color-success: #22c55e; /* bright green for success */
+    --color-success-foreground: #0a0a0a; /* dark text */
+
+    /* Warning Colors */
+    --color-warning: #f59e0b; /* adjusted amber for dark mode */
+    --color-warning-foreground: #0a0a0a; /* dark text */
+
+    /* Error/Destructive Colors */
+    --color-error: #ef4444; /* brighter red for dark mode */
+    --color-error-foreground: #fafafa; /* light text */
+    --color-destructive: #ef4444; /* brighter red for dark mode */
+    --color-destructive-foreground: #fafafa; /* light text */
   }
   
   * {
@@ -59,6 +106,12 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    transition: background-color 200ms ease-out, color 200ms ease-out;
+  }
+
+  /* Prevent theme flash on load */
+  .theme-loading body {
+    visibility: hidden;
   }
 }
 
@@ -66,21 +119,49 @@
   .text-shadow-sm {
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   }
-  
+
   .shadow-elevation-1 {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
-  
+
   .shadow-elevation-2 {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
-  
+
   .transition-micro {
     transition: all 150ms ease-in-out;
   }
-  
+
   .transition-standard {
     transition: all 200ms ease-out;
+  }
+
+  /* Revolutionary Logo Utilities */
+  .logo-glow {
+    filter: drop-shadow(0 0 10px rgba(34, 197, 94, 0.3)) drop-shadow(0 0 20px rgba(255, 111, 0, 0.2));
+  }
+
+  .text-glow {
+    text-shadow: 0 0 10px rgba(34, 197, 94, 0.5), 0 0 20px rgba(255, 111, 0, 0.3), 0 0 30px rgba(34, 197, 94, 0.2);
+  }
+
+  .holographic {
+    background: linear-gradient(45deg, #22c55e, #f97316, #22c55e, #f97316);
+    background-size: 400% 400%;
+    animation: holographic 3s ease-in-out infinite;
+  }
+
+  @keyframes holographic {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  .animation-delay-100 {
+    animation-delay: 100ms;
+  }
+
+  .animation-delay-200 {
+    animation-delay: 200ms;
   }
 }
 

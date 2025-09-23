@@ -34,6 +34,7 @@ export const getLeaderboard = async (leagueId = 'general', period = 'overall', s
     const leaderboardRef = collection(db, COLLECTIONS.LEADERBOARDS);
     let q;
 
+    // Simplified queries to avoid complex composite index requirements
     switch (sortBy) {
       case 'accuracy':
         q = query(
@@ -41,7 +42,6 @@ export const getLeaderboard = async (leagueId = 'general', period = 'overall', s
           where('leagueId', '==', leagueId),
           where('period', '==', period),
           orderBy('accuracy', 'desc'),
-          orderBy('totalPoints', 'desc'),
           limit(limitCount)
         );
         break;
@@ -51,7 +51,6 @@ export const getLeaderboard = async (leagueId = 'general', period = 'overall', s
           where('leagueId', '==', leagueId),
           where('period', '==', period),
           orderBy('totalPredictions', 'desc'),
-          orderBy('totalPoints', 'desc'),
           limit(limitCount)
         );
         break;
@@ -61,7 +60,6 @@ export const getLeaderboard = async (leagueId = 'general', period = 'overall', s
           where('leagueId', '==', leagueId),
           where('period', '==', period),
           orderBy('totalPoints', 'desc'),
-          orderBy('accuracy', 'desc'),
           limit(limitCount)
         );
     }
@@ -76,6 +74,29 @@ export const getLeaderboard = async (leagueId = 'general', period = 'overall', s
         position: index + 1,
         ...data
       });
+    });
+
+    // Client-side secondary sort for better UX
+    if (sortBy === 'points') {
+      leaderboardData.sort((a, b) => {
+        if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+        return b.accuracy - a.accuracy;
+      });
+    } else if (sortBy === 'accuracy') {
+      leaderboardData.sort((a, b) => {
+        if (b.accuracy !== a.accuracy) return b.accuracy - a.accuracy;
+        return b.totalPoints - a.totalPoints;
+      });
+    } else if (sortBy === 'predictions') {
+      leaderboardData.sort((a, b) => {
+        if (b.totalPredictions !== a.totalPredictions) return b.totalPredictions - a.totalPredictions;
+        return b.totalPoints - a.totalPoints;
+      });
+    }
+
+    // Update positions after sorting
+    leaderboardData.forEach((item, index) => {
+      item.position = index + 1;
     });
 
     return leaderboardData;
@@ -193,47 +214,37 @@ export const getTopPerformers = async (leagueId = 'general', limitCount = 3) => 
   try {
     const leaderboardRef = collection(db, COLLECTIONS.LEADERBOARDS);
 
-    // Most accurate predictors
-    const accuracyQuery = query(
+    // Get all data for the league and filter/sort client-side to avoid complex indexes
+    const generalQuery = query(
       leaderboardRef,
       where('leagueId', '==', leagueId),
       where('period', '==', 'overall'),
-      where('totalPredictions', '>=', 10), // Minimum predictions for accuracy ranking
-      orderBy('accuracy', 'desc'),
-      orderBy('totalPredictions', 'desc'),
-      limit(limitCount)
+      limit(100) // Get more data to filter client-side
     );
 
-    // Highest scorers
-    const pointsQuery = query(
-      leaderboardRef,
-      where('leagueId', '==', leagueId),
-      where('period', '==', 'overall'),
-      orderBy('totalPoints', 'desc'),
-      limit(limitCount)
-    );
+    const querySnapshot = await getDocs(generalQuery);
+    const allData = [];
 
-    const [accuracySnapshot, pointsSnapshot] = await Promise.all([
-      getDocs(accuracyQuery),
-      getDocs(pointsQuery)
-    ]);
-
-    const mostAccurate = [];
-    const highestScorers = [];
-
-    accuracySnapshot.forEach((doc) => {
-      mostAccurate.push({
+    querySnapshot.forEach((doc) => {
+      allData.push({
         id: doc.id,
         ...doc.data()
       });
     });
 
-    pointsSnapshot.forEach((doc) => {
-      highestScorers.push({
-        id: doc.id,
-        ...doc.data()
-      });
-    });
+    // Client-side filtering and sorting
+    const eligibleForAccuracy = allData.filter(item => (item.totalPredictions || 0) >= 10);
+
+    const mostAccurate = [...eligibleForAccuracy]
+      .sort((a, b) => {
+        if (b.accuracy !== a.accuracy) return b.accuracy - a.accuracy;
+        return b.totalPredictions - a.totalPredictions;
+      })
+      .slice(0, limitCount);
+
+    const highestScorers = [...allData]
+      .sort((a, b) => b.totalPoints - a.totalPoints)
+      .slice(0, limitCount);
 
     return {
       mostAccurate,

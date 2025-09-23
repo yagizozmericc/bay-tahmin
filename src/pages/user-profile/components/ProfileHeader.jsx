@@ -1,20 +1,50 @@
 import React, { useState } from 'react';
 import Icon from '../../../components/AppIcon';
-import Image from '../../../components/AppImage';
 import Button from '../../../components/ui/Button';
 
-const ProfileHeader = ({ user, onAvatarUpdate }) => {
-  const [isUploading, setIsUploading] = useState(false);
+const ProfileHeader = ({ user, onShareProfile, onNavigateToSettings }) => {
+  const [isSharing, setIsSharing] = useState(false);
 
-  const handleAvatarChange = async (event) => {
-    const file = event?.target?.files?.[0];
-    if (file) {
-      setIsUploading(true);
-      // Mock upload delay
-      setTimeout(() => {
-        onAvatarUpdate(URL.createObjectURL(file));
-        setIsUploading(false);
-      }, 1500);
+  const handleShareProfile = async () => {
+    setIsSharing(true);
+
+    try {
+      const shareData = {
+        title: `${user?.username || 'User'}'s Football Predictions Profile`,
+        text: `Check out my prediction stats: ${user?.totalPredictions || 0} predictions with ${user?.accuracy || 0}% accuracy!`,
+        url: window.location.href
+      };
+
+      // Check if Web Share API is available
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        // Fallback to clipboard
+        await navigator.clipboard.writeText(
+          `${shareData.title}\n${shareData.text}\n${shareData.url}`
+        );
+
+        // Call parent callback for feedback
+        if (onShareProfile) {
+          onShareProfile('copied', 'Profile link copied to clipboard!');
+        }
+      }
+    } catch (error) {
+      console.error('Error sharing profile:', error);
+
+      // Try clipboard as final fallback
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        if (onShareProfile) {
+          onShareProfile('copied', 'Profile link copied to clipboard!');
+        }
+      } catch (clipboardError) {
+        if (onShareProfile) {
+          onShareProfile('error', 'Failed to share profile. Please try again.');
+        }
+      }
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -22,37 +52,8 @@ const ProfileHeader = ({ user, onAvatarUpdate }) => {
     <div className="bg-card border border-border rounded-lg p-6 mb-6">
       <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-6">
         {/* Avatar Section */}
-        <div className="relative">
-          <div className="w-24 h-24 rounded-full overflow-hidden bg-muted border-4 border-primary/20">
-            {user?.avatar ? (
-              <Image 
-                src={user?.avatar} 
-                alt={`${user?.username}'s avatar`}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-primary">
-                <Icon name="User" size={32} color="white" />
-              </div>
-            )}
-          </div>
-          
-          {/* Upload Button */}
-          <label className="absolute -bottom-2 -right-2 cursor-pointer">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleAvatarChange}
-              className="hidden"
-            />
-            <div className="w-8 h-8 bg-accent hover:bg-accent/90 rounded-full flex items-center justify-center border-2 border-card transition-micro">
-              {isUploading ? (
-                <Icon name="Loader2" size={16} color="white" className="animate-spin" />
-              ) : (
-                <Icon name="Camera" size={16} color="white" />
-              )}
-            </div>
-          </label>
+        <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-br from-primary to-secondary border-4 border-primary/20 flex items-center justify-center">
+          <Icon name="User" size={40} color="white" />
         </div>
 
         {/* User Info */}
@@ -82,10 +83,23 @@ const ProfileHeader = ({ user, onAvatarUpdate }) => {
 
         {/* Action Buttons */}
         <div className="flex space-x-2">
-          <Button variant="outline" size="sm" iconName="Share2" iconPosition="left">
+          <Button
+            variant="outline"
+            size="sm"
+            iconName={isSharing ? "Loader2" : "Share2"}
+            iconPosition="left"
+            onClick={handleShareProfile}
+            loading={isSharing}
+          >
             Share Profile
           </Button>
-          <Button variant="default" size="sm" iconName="Settings" iconPosition="left">
+          <Button
+            variant="default"
+            size="sm"
+            iconName="Settings"
+            iconPosition="left"
+            onClick={() => onNavigateToSettings && onNavigateToSettings()}
+          >
             Settings
           </Button>
         </div>

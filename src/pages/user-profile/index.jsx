@@ -6,27 +6,18 @@ import ProfileForm from './components/ProfileForm';
 import StatisticsPanel from './components/StatisticsPanel';
 import AchievementsPanel from './components/AchievementsPanel';
 import SettingsPanel from './components/SettingsPanel';
+import { useAuth } from '../../context/AuthContext';
+import { getUserProfile, createOrUpdateUserProfile } from '../../services/userProfileService';
+import Icon from '../../components/AppIcon';
+import Button from '../../components/ui/Button';
 
 const UserProfile = () => {
+  const { user: authUser } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
-  const [user, setUser] = useState({
-    id: 1,
-    username: "footballfan2024",
-    email: "john.doe@email.com",
-    firstName: "John",
-    lastName: "Doe",
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
-    totalPredictions: 247,
-    accuracy: 73.2,
-    globalRank: 1247,
-    preferredCompetitions: ['champions-league', 'turkish-super-league'],
-    notifications: {
-      matchReminders: true,
-      leagueUpdates: true,
-      achievements: true,
-      weeklySummary: false
-    }
-  });
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [shareMessage, setShareMessage] = useState(null);
 
   const [statistics] = useState({
     totalPredictions: 247,
@@ -83,18 +74,77 @@ const UserProfile = () => {
 
   useEffect(() => {
     document.title = 'User Profile - Bay Tahmin Pro';
-  }, []);
+    loadUserProfile();
+  }, [authUser]);
 
-  const handleAvatarUpdate = (newAvatar) => {
-    setUser(prev => ({ ...prev, avatar: newAvatar }));
+  const loadUserProfile = async () => {
+    if (!authUser?.uid) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      let profile = await getUserProfile(authUser.uid);
+
+      if (!profile) {
+        // Create profile with initial data from auth
+        profile = await createOrUpdateUserProfile(authUser.uid, {
+          username: authUser.displayName || authUser.email?.split('@')[0] || '',
+          email: authUser.email || '',
+          firstName: '',
+          lastName: '',
+          bio: '',
+          location: '',
+          favoriteTeam: '',
+          preferredCompetitions: [],
+          notifications: {
+            matchReminders: true,
+            leagueUpdates: true,
+            achievements: true,
+            weeklySummary: false
+          }
+        });
+      }
+
+      // Add auth user data
+      setUser({
+        ...profile,
+        uid: authUser.uid,
+        totalPredictions: 0,
+        accuracy: 0,
+        globalRank: 0
+      });
+    } catch (err) {
+      console.error('Error loading user profile:', err);
+      setError('Failed to load profile');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleProfileSave = (updatedData) => {
-    setUser(prev => ({ ...prev, ...updatedData }));
+  const handleProfileSave = async (updatedData) => {
+    try {
+      const updatedProfile = await createOrUpdateUserProfile(authUser.uid, updatedData);
+      setUser(prev => ({ ...prev, ...updatedProfile }));
+    } catch (err) {
+      console.error('Error saving profile:', err);
+      throw err;
+    }
   };
 
   const handleSettingsUpdate = (updatedSettings) => {
     setSettings(updatedSettings);
+  };
+
+  const handleShareProfile = (type, message) => {
+    setShareMessage({ type, message });
+    // Auto-hide message after 3 seconds
+    setTimeout(() => setShareMessage(null), 3000);
+  };
+
+  const handleNavigateToSettings = () => {
+    setActiveTab('settings');
   };
 
   const renderTabContent = () => {
@@ -112,24 +162,101 @@ const UserProfile = () => {
     }
   };
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="pt-16 pb-20 lg:pb-8">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="bg-card rounded-lg border border-border p-12 text-center">
+              <Icon name="Loader2" size={48} className="text-primary mx-auto mb-4 animate-spin" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">Loading Profile</h3>
+              <p className="text-muted-foreground">Please wait while we load your profile...</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="pt-16 pb-20 lg:pb-8">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="bg-card rounded-lg border border-border p-12 text-center">
+              <Icon name="AlertCircle" size={48} className="text-error mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">Error Loading Profile</h3>
+              <p className="text-muted-foreground mb-6">{error}</p>
+              <Button onClick={loadUserProfile}>Try Again</Button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Not authenticated
+  if (!authUser) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="pt-16 pb-20 lg:pb-8">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="bg-card rounded-lg border border-border p-12 text-center">
+              <Icon name="UserX" size={48} className="text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">Please Sign In</h3>
+              <p className="text-muted-foreground">You need to be signed in to view your profile.</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <main className="pt-16 pb-20 lg:pb-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Share Message */}
+          {shareMessage && (
+            <div
+              className={`mb-4 p-4 text-sm rounded-lg border ${
+                shareMessage.type === 'copied'
+                  ? 'border-success/40 bg-success/10 text-success'
+                  : shareMessage.type === 'error'
+                  ? 'border-error/40 bg-error/10 text-error'
+                  : 'border-primary/40 bg-primary/10 text-primary'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Icon
+                  name={shareMessage.type === 'copied' ? 'CheckCircle' : shareMessage.type === 'error' ? 'AlertCircle' : 'Info'}
+                  size={16}
+                />
+                <span>{shareMessage.message}</span>
+              </div>
+            </div>
+          )}
+
           {/* Profile Header */}
-          <ProfileHeader 
-            user={user} 
-            onAvatarUpdate={handleAvatarUpdate}
+          <ProfileHeader
+            user={user}
+            onShareProfile={handleShareProfile}
+            onNavigateToSettings={handleNavigateToSettings}
           />
-          
+
           {/* Navigation Tabs */}
-          <ProfileTabs 
-            activeTab={activeTab} 
+          <ProfileTabs
+            activeTab={activeTab}
             onTabChange={setActiveTab}
           />
-          
+
           {/* Tab Content */}
           <div className="min-h-[600px]">
             {renderTabContent()}

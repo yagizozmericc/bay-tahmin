@@ -194,18 +194,6 @@ The application is fully responsive and optimized for:
 
 Built with mobile-first approach using Tailwind CSS breakpoints.
 
-## 🚀 Deployment
-
-1. Build the application:
-   ```bash
-   npm run build
-   ```
-
-2. Deploy to Firebase Hosting:
-   ```bash
-   firebase deploy
-   ```
-
 The application is configured for Firebase Hosting with proper routing and caching headers.
 
 ## 🤝 Contributing
@@ -229,5 +217,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [Vite](https://vitejs.dev/) for the blazing fast build tool
 
 ---
-
-Built with ❤️ for football prediction enthusiasts

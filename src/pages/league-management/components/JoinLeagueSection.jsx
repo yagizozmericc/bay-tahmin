@@ -1,64 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
+import { getPublicLeagues, joinLeagueByCode } from '../../../services/leagueService';
+import { useAuth } from '../../../context/AuthContext';
 
 const JoinLeagueSection = ({ onJoinLeague }) => {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [selectedLeague, setSelectedLeague] = useState(null);
+  const [publicLeagues, setPublicLeagues] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [joiningByCode, setJoiningByCode] = useState(false);
+  const [joiningPublic, setJoiningPublic] = useState(null);
 
-  // Mock public leagues data
-  const publicLeagues = [
-    {
-      id: 'pub-1',
-      name: 'Champions League Masters',
-      description: 'Elite predictions for Champions League matches',
-      competition: 'UEFA Champions League',
-      memberCount: 45,
-      maxMembers: 50,
-      currentLeader: 'FootballGuru',
-      leaderPoints: 127,
-      createdBy: 'PredictionKing',
-      isPrivate: false
-    },
-    {
-      id: 'pub-2',
-      name: 'Turkish Football Fanatics',
-      description: 'Passionate predictions for Turkish Super League',
-      competition: 'Turkish Super League',
-      memberCount: 32,
-      maxMembers: 100,
-      currentLeader: 'GalatasarayFan',
-      leaderPoints: 89,
-      createdBy: 'TurkishFootball',
-      isPrivate: false
-    },
-    {
-      id: 'pub-3',
-      name: 'Premier League Predictors',
-      description: 'Weekly predictions for Premier League matches',
-      competition: 'Premier League',
-      memberCount: 78,
-      maxMembers: 100,
-      currentLeader: 'ManUtdFan',
-      leaderPoints: 156,
-      createdBy: 'EPLExpert',
-      isPrivate: false
-    },
-    {
-      id: 'pub-4',
-      name: 'La Liga Legends',
-      description: 'Spanish football prediction championship',
-      competition: 'La Liga',
-      memberCount: 23,
-      maxMembers: 50,
-      currentLeader: 'BarcelonaFan',
-      leaderPoints: 98,
-      createdBy: 'SpanishFootball',
-      isPrivate: false
+  // Load public leagues from Firestore
+  useEffect(() => {
+    loadPublicLeagues();
+  }, []);
+
+  const loadPublicLeagues = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const leagues = await getPublicLeagues(20);
+      setPublicLeagues(leagues);
+    } catch (err) {
+      console.error('Error loading public leagues:', err);
+      setError('Failed to load public leagues');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
   const filteredLeagues = publicLeagues?.filter(league =>
     league?.name?.toLowerCase()?.includes(searchQuery?.toLowerCase()) ||
@@ -66,27 +41,51 @@ const JoinLeagueSection = ({ onJoinLeague }) => {
     league?.description?.toLowerCase()?.includes(searchQuery?.toLowerCase())
   );
 
-  const handleJoinByCode = () => {
-    if (inviteCode?.trim()) {
-      // Mock league data for invite code
-      const mockLeague = {
-        id: 'inv-1',
-        name: 'Private Champions Circle',
-        description: 'Exclusive league for serious predictors',
-        competition: 'UEFA Champions League',
-        memberCount: 12,
-        maxMembers: 20,
-        isPrivate: true,
-        inviteCode: inviteCode
-      };
-      
-      onJoinLeague(mockLeague);
+  const handleJoinByCode = async () => {
+    if (!inviteCode?.trim() || !user?.uid) return;
+
+    try {
+      setJoiningByCode(true);
+      setError(null);
+
+      const joinedLeague = await joinLeagueByCode(
+        inviteCode.trim(),
+        user.uid,
+        user.displayName || user.email?.split('@')[0] || 'User',
+        user.email || ''
+      );
+
+      onJoinLeague(joinedLeague);
       setInviteCode('');
+    } catch (err) {
+      console.error('Error joining league by code:', err);
+      setError(err.message || 'Failed to join league');
+    } finally {
+      setJoiningByCode(false);
     }
   };
 
-  const handleJoinPublicLeague = (league) => {
-    onJoinLeague(league);
+  const handleJoinPublicLeague = async (league) => {
+    if (!user?.uid) return;
+
+    try {
+      setJoiningPublic(league.id);
+      setError(null);
+
+      const joinedLeague = await joinLeagueByCode(
+        league.inviteCode,
+        user.uid,
+        user.displayName || user.email?.split('@')[0] || 'User',
+        user.email || ''
+      );
+
+      onJoinLeague(joinedLeague);
+    } catch (err) {
+      console.error('Error joining public league:', err);
+      setError(err.message || 'Failed to join league');
+    } finally {
+      setJoiningPublic(null);
+    }
   };
 
   const handlePreviewLeague = (league) => {
@@ -95,6 +94,16 @@ const JoinLeagueSection = ({ onJoinLeague }) => {
 
   return (
     <div className="space-y-6">
+      {/* Error Message */}
+      {error && (
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <Icon name="AlertCircle" size={16} className="text-destructive" />
+            <span className="text-sm text-destructive">{error}</span>
+          </div>
+        </div>
+      )}
+
       {/* Join by Invite Code */}
       <div className="bg-card border border-border rounded-lg p-6">
         <div className="flex items-center space-x-2 mb-4">
@@ -116,11 +125,12 @@ const JoinLeagueSection = ({ onJoinLeague }) => {
           <Button
             variant="default"
             onClick={handleJoinByCode}
-            disabled={inviteCode?.length !== 6}
-            iconName="LogIn"
+            disabled={inviteCode?.length !== 6 || joiningByCode || !user?.uid}
+            loading={joiningByCode}
+            iconName={joiningByCode ? "Loader2" : "LogIn"}
             iconPosition="left"
           >
-            Join League
+            {joiningByCode ? 'Joining...' : 'Join League'}
           </Button>
         </div>
       </div>
@@ -141,8 +151,21 @@ const JoinLeagueSection = ({ onJoinLeague }) => {
           </div>
         </div>
 
-        <div className="space-y-3">
-          {filteredLeagues?.map((league) => (
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Icon name="Loader2" size={32} className="text-primary animate-spin" />
+          </div>
+        ) : error && publicLeagues.length === 0 ? (
+          <div className="text-center py-8">
+            <Icon name="AlertCircle" size={48} className="text-destructive mx-auto mb-3" />
+            <p className="text-destructive mb-4">Failed to load public leagues</p>
+            <Button onClick={loadPublicLeagues} variant="outline" size="sm">
+              Try Again
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredLeagues?.map((league) => (
             <div
               key={league?.id}
               className="border border-border rounded-lg p-4 hover:bg-muted/50 transition-micro"
@@ -167,12 +190,8 @@ const JoinLeagueSection = ({ onJoinLeague }) => {
                       <span>{league?.competition}</span>
                     </div>
                     <div className="flex items-center space-x-1">
-                      <Icon name="Crown" size={12} />
-                      <span>{league?.currentLeader} ({league?.leaderPoints} pts)</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
                       <Icon name="User" size={12} />
-                      <span>by {league?.createdBy}</span>
+                      <span>by {league?.ownerName}</span>
                     </div>
                   </div>
                 </div>
@@ -191,24 +210,28 @@ const JoinLeagueSection = ({ onJoinLeague }) => {
                     variant="default"
                     size="sm"
                     onClick={() => handleJoinPublicLeague(league)}
-                    disabled={league?.memberCount >= league?.maxMembers && league?.maxMembers !== 0}
-                    iconName="Plus"
+                    disabled={league?.memberCount >= league?.maxMembers && league?.maxMembers !== 0 || joiningPublic === league.id || !user?.uid}
+                    loading={joiningPublic === league.id}
+                    iconName={joiningPublic === league.id ? "Loader2" : "Plus"}
                     iconPosition="left"
                   >
-                    {league?.memberCount >= league?.maxMembers && league?.maxMembers !== 0 ? 'Full' : 'Join'}
+                    {joiningPublic === league.id ? 'Joining...' : (league?.memberCount >= league?.maxMembers && league?.maxMembers !== 0 ? 'Full' : 'Join')}
                   </Button>
                 </div>
               </div>
             </div>
           ))}
 
-          {filteredLeagues?.length === 0 && (
-            <div className="text-center py-8">
-              <Icon name="Search" size={48} className="text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground">No leagues found matching your search.</p>
-            </div>
-          )}
-        </div>
+            {filteredLeagues?.length === 0 && (
+              <div className="text-center py-8">
+                <Icon name="Search" size={48} className="text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">
+                  {searchQuery ? 'No leagues found matching your search.' : 'No public leagues available.'}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {/* League Preview Modal */}
       {selectedLeague && (
@@ -243,12 +266,14 @@ const JoinLeagueSection = ({ onJoinLeague }) => {
                   </p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Leader:</span>
-                  <p className="font-medium text-foreground">{selectedLeague?.currentLeader}</p>
+                  <span className="text-muted-foreground">Created by:</span>
+                  <p className="font-medium text-foreground">{selectedLeague?.ownerName}</p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Top Score:</span>
-                  <p className="font-medium text-foreground">{selectedLeague?.leaderPoints} pts</p>
+                  <span className="text-muted-foreground">Created:</span>
+                  <p className="font-medium text-foreground">
+                    {selectedLeague?.createdAt?.toDate ? selectedLeague.createdAt.toDate().toLocaleDateString() : 'Recently'}
+                  </p>
                 </div>
               </div>
 
