@@ -33,14 +33,14 @@ const InviteModal = ({ league, isOpen, onClose }) => {
   };
 
   const handleShareWhatsApp = () => {
-    const message = `Join my Bay Tahmin league "${league?.name}"! Use this link: ${inviteLink}`;
+    const message = `Join my Scorism league "${league?.name}"! Use this link: ${inviteLink}`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
   };
 
   const handleShareEmail = () => {
-    const subject = `Join my Bay Tahmin league: ${league?.name}`;
-    const body = `Hi!\n\nI'd like to invite you to join my prediction league "${league?.name}" on Bay Tahmin Pro.\n\nLeague Details:\n- Competition: ${league?.competition}\n- Members: ${league?.memberCount}\n- Current Leader: ${league?.currentLeader}\n\nJoin using this link: ${inviteLink}\n\nOr use invite code: ${inviteCode}\n\nLet's see who's the better predictor!\n\nCheers!`;
+    const subject = `Join my Scorism league: ${league?.name}`;
+    const body = `Hi!\n\nI'd like to invite you to join my prediction league "${league?.name}" on Scorism.\n\nLeague Details:\n- Competition: ${league?.competition}\n- Members: ${league?.memberCount}\n- Current Leader: ${league?.currentLeader}\n\nJoin using this link: ${inviteLink}\n\nOr use invite code: ${inviteCode}\n\nLet's see who's the better predictor!\n\nCheers!`;
     const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.open(mailtoUrl);
   };

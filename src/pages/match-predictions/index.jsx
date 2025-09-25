@@ -8,8 +8,11 @@ import FilterControls from './components/FilterControls';
 import PredictionSummary from './components/PredictionSummary';
 import ConfirmationDialog from './components/ConfirmationDialog';
 import { useMatches, COMPETITIONS } from '../../hooks/useMatches';
-import { savePrediction, getUserPredictions } from '../../services/predictionService';
+import { savePrediction, getUserPredictions, predictionService } from '../../services/predictionService';
 import { useAuth } from '../../context/AuthContext';
+import { matchResultService } from '../../services/matchResultService';
+import { matchResultCacheService } from '../../services/matchResultCacheService';
+import { isActivePrediction } from '../../utils/predictionUtils';
 
 const DEFAULT_COMPETITIONS = [
   COMPETITIONS.TURKISH_SUPER_LEAGUE,
@@ -82,6 +85,8 @@ const MatchPredictions = () => {
   const [predictionLoadError, setPredictionLoadError] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false });
+  const [matchResults, setMatchResults] = useState({});
+  const [loadingResults, setLoadingResults] = useState(false);
 
   const autoSaveTimerRef = useRef(null);
   const feedbackTimerRef = useRef(null);
@@ -175,6 +180,92 @@ const MatchPredictions = () => {
       cancelled = true;
     };
   }, [authLoading, isAuthenticated, userId]);
+
+  // Load match results for finished matches
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadMatchResults = async () => {
+      if (!matches || matches.length === 0) {
+        return;
+      }
+
+      setLoadingResults(true);
+
+      try {
+        // Get finished matches (based on status or time passed)
+        const now = new Date();
+        const finishedMatches = matches.filter(match => {
+          const kickoffTime = new Date(match.kickoffTime);
+          const timeSinceKickoff = now - kickoffTime;
+
+          // Consider finished if kickoff was more than 2 hours ago
+          return timeSinceKickoff > (2 * 60 * 60 * 1000);
+        });
+
+        if (finishedMatches.length === 0) {
+          if (!cancelled) {
+            setMatchResults({});
+            setLoadingResults(false);
+          }
+          return;
+        }
+
+        const matchIds = finishedMatches.map(match => match.id);
+
+        // Get cached results first
+        const cachedResults = await matchResultCacheService.getCachedResultsForMatches(matchIds);
+
+        if (!cancelled) {
+          const resultsMap = {};
+          cachedResults.forEach((result, matchId) => {
+            resultsMap[matchId] = result;
+          });
+          setMatchResults(resultsMap);
+        }
+
+        // Check if we need to fetch any new results (limit to avoid API rate limits)
+        const uncachedMatches = finishedMatches.filter(match => !cachedResults.has(match.id));
+
+        if (uncachedMatches.length > 0) {
+          console.log(`Found ${uncachedMatches.length} matches needing result updates`);
+
+          // Limit concurrent API calls to respect rate limits
+          const updateResults = await matchResultService.updateRecentResults({
+            maxMatches: Math.min(uncachedMatches.length, 5), // Limit to 5 API calls
+            competitions: selectedCompetitions
+          });
+
+          console.log('Background result update:', updateResults);
+
+          // Reload cached results after API updates
+          if (updateResults.updated > 0) {
+            const updatedCachedResults = await matchResultCacheService.getCachedResultsForMatches(matchIds);
+
+            if (!cancelled) {
+              const updatedResultsMap = {};
+              updatedCachedResults.forEach((result, matchId) => {
+                updatedResultsMap[matchId] = result;
+              });
+              setMatchResults(updatedResultsMap);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading match results:', error);
+      } finally {
+        if (!cancelled) {
+          setLoadingResults(false);
+        }
+      }
+    };
+
+    loadMatchResults();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [matches, selectedCompetitions]);
 
   const savePredictionsBatch = useCallback(async (batch, { reason = 'auto' } = {}) => {
     if (!userId) {
@@ -427,54 +518,48 @@ const MatchPredictions = () => {
     setConfirmDialog({ isOpen: true });
   };
 
-  const confirmClearAll = useCallback(() => {
-    const entries = Object.entries(predictions).filter(([, prediction]) => prediction && (
-      prediction.homeScore !== ''
-      || prediction.awayScore !== ''
-      || (Array.isArray(prediction.scorers) && prediction.scorers.length > 0)
-    ));
+  const confirmClearAll = useCallback(async () => {
+    const entries = Object.entries(predictions).filter(([, prediction]) => isActivePrediction(prediction));
 
     if (!entries.length) {
       setConfirmDialog({ isOpen: false });
       return;
     }
 
-    const timestamp = Date.now();
+    try {
+      setConfirmDialog({ isOpen: false });
+      showFeedback('info', 'Clearing all predictions...');
 
-    setPredictions((prev) => {
-      const next = { ...prev };
-      entries.forEach(([matchId]) => {
-        next[matchId] = {
-          ...next[matchId],
-          homeScore: '',
-          awayScore: '',
-          scorers: [],
-          status: 'pending'
-        };
+      // Delete from database using the predictionService
+      const deletePromises = entries.map(([matchId]) =>
+        predictionService.deletePrediction(userId, matchId)
+      );
+
+      await Promise.all(deletePromises);
+
+      // Clear from local state - completely remove the entries
+      setPredictions((prev) => {
+        const next = { ...prev };
+        entries.forEach(([matchId]) => {
+          delete next[matchId]; // Completely remove the entry
+        });
+        return next;
       });
-      return next;
-    });
 
-    setPendingPredictions((prev) => {
-      const next = { ...prev };
-      entries.forEach(([matchId], index) => {
-        next[matchId] = {
-          matchId,
-          userId,
-          homeScore: '',
-          awayScore: '',
-          scorers: [],
-          status: 'pending',
-          points: predictions[matchId]?.points || 0,
-          createdAt: predictions[matchId]?.createdAt || null,
-          _dirtyKey: timestamp + index
-        };
+      // Clear from pending predictions too
+      setPendingPredictions((prev) => {
+        const next = { ...prev };
+        entries.forEach(([matchId]) => {
+          delete next[matchId]; // Completely remove the entry
+        });
+        return next;
       });
-      return next;
-    });
 
-    showFeedback('info', 'Predictions cleared. Pending changes will be saved shortly.');
-    setConfirmDialog({ isOpen: false });
+      showFeedback('success', `${entries.length} predictions cleared successfully.`);
+    } catch (error) {
+      console.error('Error clearing predictions:', error);
+      showFeedback('error', 'Failed to clear predictions. Please try again.');
+    }
   }, [predictions, userId, showFeedback]);
 
 
@@ -511,11 +596,7 @@ const MatchPredictions = () => {
     if (filters?.status !== 'all') {
       filtered = filtered.filter((match) => {
         const prediction = predictions?.[match?.id];
-        const hasPrediction = prediction && (
-          prediction.homeScore !== ''
-          || prediction.awayScore !== ''
-          || (Array.isArray(prediction.scorers) && prediction.scorers.length > 0)
-        );
+        const hasPrediction = isActivePrediction(prediction);
         const isDeadlineSoon = new Date(match.kickoffTime) - new Date() <= 2 * 60 * 60 * 1000;
         switch (filters.status) {
           case 'predicted':
@@ -539,8 +620,8 @@ const MatchPredictions = () => {
         case 'prediction-status': {
           const aPred = predictions?.[a?.id];
           const bPred = predictions?.[b?.id];
-          const aHasPred = aPred && (aPred.homeScore !== '' || aPred.awayScore !== '');
-          const bHasPred = bPred && (bPred.homeScore !== '' || bPred.awayScore !== '');
+          const aHasPred = isActivePrediction(aPred);
+          const bHasPred = isActivePrediction(bPred);
           return Number(bHasPred) - Number(aHasPred);
         }
         case 'kickoff-asc':
@@ -673,18 +754,28 @@ const MatchPredictions = () => {
             </div>
           ) : (
             <div className="space-y-6">
-              {filteredMatches.map((match) => (
-                <MatchCard
-                  key={match?.id}
-                  match={match}
-                  onPredictionChange={handlePredictionChange}
-                  userPrediction={predictions?.[match?.id]}
-                  canEdit={isAuthenticated}
-                  savingState={savingMatches?.[match?.id]}
-                  lastSavedAt={lastSavedMap?.[match?.id]}
-                  saveError={saveErrors?.[match?.id]}
-                />
-              ))}
+              {filteredMatches.map((match) => {
+                const matchResult = matchResults[match?.id];
+                const hasResult = Boolean(matchResult?.finalScore);
+                const now = new Date();
+                const kickoffTime = new Date(match.kickoffTime);
+                const isFinished = (now - kickoffTime) > (2 * 60 * 60 * 1000); // 2 hours after kickoff
+
+                return (
+                  <MatchCard
+                    key={match?.id}
+                    match={match}
+                    onPredictionChange={handlePredictionChange}
+                    userPrediction={predictions?.[match?.id]}
+                    canEdit={isAuthenticated}
+                    savingState={savingMatches?.[match?.id]}
+                    lastSavedAt={lastSavedMap?.[match?.id]}
+                    saveError={saveErrors?.[match?.id]}
+                    matchResult={matchResult}
+                    showResult={isFinished && hasResult}
+                  />
+                );
+              })}
             </div>
           )}
 

@@ -15,6 +15,7 @@ import {
   increment
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+// Dynamic import to avoid circular dependency
 
 // Collection references
 const COLLECTIONS = {
@@ -120,6 +121,19 @@ export const createLeague = async (leagueData, userId, userName, userEmail) => {
     };
 
     await addDoc(collection(db, COLLECTIONS.LEAGUE_MEMBERS), memberDoc);
+
+    // Initialize user in league leaderboard
+    try {
+      const { leagueLeaderboardService } = await import('./leagueLeaderboardService');
+      await leagueLeaderboardService.initializeUserInLeague(
+        leagueRef.id,
+        userId,
+        userName,
+        userEmail
+      );
+    } catch (error) {
+      console.error('Error initializing user in league leaderboard:', error);
+    }
 
     return {
       id: leagueRef.id,
@@ -270,6 +284,19 @@ export const joinLeagueByCode = async (inviteCode, userId, userName, userEmail) 
       memberCount: increment(1),
       updatedAt: serverTimestamp()
     });
+
+    // Initialize user in league leaderboard
+    try {
+      const { leagueLeaderboardService } = await import('./leagueLeaderboardService');
+      await leagueLeaderboardService.initializeUserInLeague(
+        leagueDoc.id,
+        userId,
+        userName,
+        userEmail
+      );
+    } catch (error) {
+      console.error('Error initializing user in league leaderboard:', error);
+    }
 
     return {
       id: leagueDoc.id,
@@ -449,7 +476,6 @@ export const getPublicLeagues = async (limit = 20) => {
       collection(db, COLLECTIONS.LEAGUES),
       where('isPrivate', '==', false),
       where('isActive', '==', true),
-      orderBy('memberCount', 'desc'),
       orderBy('createdAt', 'desc')
     );
 
@@ -458,13 +484,26 @@ export const getPublicLeagues = async (limit = 20) => {
 
     leaguesSnapshot.forEach((doc) => {
       const data = doc.data();
-      // Only show leagues that aren't full
-      if (data.memberCount < data.maxMembers) {
+
+      // Only show leagues that aren't full (or unlimited capacity)
+      if (data.memberCount < data.maxMembers || data.maxMembers === 0) {
         leagues.push({
           id: doc.id,
           ...data
         });
       }
+    });
+
+    // Sort by member count locally since we can't use multiple orderBy without composite index
+    leagues.sort((a, b) => {
+      // First by member count (descending)
+      if (b.memberCount !== a.memberCount) {
+        return b.memberCount - a.memberCount;
+      }
+      // Then by creation date (newest first)
+      const aDate = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+      const bDate = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+      return bDate - aDate;
     });
 
     return leagues.slice(0, limit);

@@ -1,290 +1,205 @@
-import {
-  collection,
-  doc,
-  getDocs,
-  updateDoc,
-  query,
-  where,
-  serverTimestamp
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { footballApi } from './footballApi';
+import { matchResultCacheService } from './matchResultCacheService';
+import { processMatchResult } from './scoringService';
 
-// TheSportsDB API Configuration
-const SPORTS_DB_API = {
-  BASE_URL: 'https://www.thesportsdb.com/api/v2/json',
-  API_KEY: '123', // Free API key for testing
-  ENDPOINTS: {
-    LIVESCORES_SOCCER: '/livescore/soccer',
-    LIVESCORES_LEAGUE: '/livescore',
-    PREVIOUS_MATCHES: '/schedule/previous/league',
-    NEXT_MATCHES: '/schedule/next/league'
-  }
-};
-
-// League ID mappings for TheSportsDB
-const LEAGUE_MAPPINGS = {
-  'champions-league': '4480',
-  'premier-league': '4328',
-  'la-liga': '4335',
-  'bundesliga': '4331',
-  'serie-a': '4332',
-  'turkish-super-league': '4357'
-};
-
-/**
- * Fetch live scores from TheSportsDB API
- * @param {string} leagueId - League identifier (optional)
- */
-export const fetchLiveScores = async (leagueId = null) => {
-  try {
-    let url = `${SPORTS_DB_API.BASE_URL}${SPORTS_DB_API.ENDPOINTS.LIVESCORES_SOCCER}`;
-
-    if (leagueId && LEAGUE_MAPPINGS[leagueId]) {
-      url = `${SPORTS_DB_API.BASE_URL}${SPORTS_DB_API.ENDPOINTS.LIVESCORES_LEAGUE}/${LEAGUE_MAPPINGS[leagueId]}`;
-    }
-
-    const response = await fetch(url, {
-      headers: {
-        'X-API-KEY': SPORTS_DB_API.API_KEY
+export const matchResultService = {
+  /**
+   * Fetch match result with caching and API optimization
+   */
+  async fetchMatchResult(matchId, options = {}) {
+    try {
+      if (!matchId) {
+        throw new Error('Match ID is required');
       }
-    });
 
-    if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
-    }
+      const { forceRefresh = false } = options;
 
-    const data = await response.json();
-    return data.events || [];
-  } catch (error) {
-    console.error('Error fetching live scores:', error);
-    throw error;
-  }
-};
-
-/**
- * Fetch completed matches from TheSportsDB API
- * @param {string} leagueId - League identifier
- */
-export const fetchCompletedMatches = async (leagueId) => {
-  try {
-    if (!LEAGUE_MAPPINGS[leagueId]) {
-      throw new Error(`Unsupported league: ${leagueId}`);
-    }
-
-    const url = `${SPORTS_DB_API.BASE_URL}${SPORTS_DB_API.ENDPOINTS.PREVIOUS_MATCHES}/${LEAGUE_MAPPINGS[leagueId]}`;
-
-    const response = await fetch(url, {
-      headers: {
-        'X-API-KEY': SPORTS_DB_API.API_KEY
+      // Check cache first unless forced refresh
+      if (!forceRefresh) {
+        const cached = await matchResultCacheService.getCachedResult(matchId);
+        if (cached) {
+          console.log('Using cached result for match:', matchId);
+          return cached;
+        }
       }
-    });
 
-    if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
+      // Fetch from API
+      console.log('Fetching result from API for match:', matchId);
+      const result = await footballApi.getEventResult(matchId);
+
+      if (!result) {
+        console.log('No result found for match:', matchId);
+        return null;
+      }
+
+      // Cache the result
+      const cachedResult = await matchResultCacheService.cacheMatchResult(matchId, result);
+
+      return cachedResult;
+    } catch (error) {
+      console.error('Error fetching match result:', error);
+
+      // Try to return cached result as fallback
+      const cached = await matchResultCacheService.getCachedResult(matchId);
+      if (cached) {
+        console.log('Using cached result as fallback for match:', matchId);
+        return cached;
+      }
+
+      throw error;
     }
+  },
 
-    const data = await response.json();
-    return data.events || [];
-  } catch (error) {
-    console.error('Error fetching completed matches:', error);
-    throw error;
-  }
-};
+  /**
+   * Fetch multiple match results efficiently
+   */
+  async fetchMultipleResults(matchIds, options = {}) {
+    try {
+      if (!Array.isArray(matchIds) || matchIds.length === 0) {
+        return new Map();
+      }
 
-/**
- * Normalize match data from TheSportsDB to our format
- * @param {Object} apiMatch - Match data from API
- */
-export const normalizeMatchData = (apiMatch) => {
-  return {
-    externalId: apiMatch.idEvent,
-    homeTeam: apiMatch.strHomeTeam,
-    awayTeam: apiMatch.strAwayTeam,
-    homeScore: parseInt(apiMatch.intHomeScore) || 0,
-    awayScore: parseInt(apiMatch.intAwayScore) || 0,
-    status: apiMatch.strStatus,
-    date: apiMatch.dateEvent,
-    time: apiMatch.strTime,
-    league: apiMatch.strLeague,
-    season: apiMatch.strSeason,
-    round: apiMatch.intRound,
-    isCompleted: apiMatch.strStatus === 'Match Finished' || apiMatch.strStatus === 'FT',
-    venue: apiMatch.strVenue
-  };
-};
+      const { forceRefresh = false, maxApiCalls = 5 } = options;
+      const results = new Map();
 
-/**
- * Update match results in Firestore
- * @param {string} matchId - Match document ID
- * @param {Object} resultData - Match result data
- */
-export const updateMatchResult = async (matchId, resultData) => {
-  try {
-    const matchRef = doc(db, 'matches', matchId);
+      // Get cached results first
+      if (!forceRefresh) {
+        const cachedResults = await matchResultCacheService.getCachedResultsForMatches(matchIds);
+        cachedResults.forEach((result, matchId) => {
+          results.set(matchId, result);
+        });
+      }
 
-    await updateDoc(matchRef, {
-      homeScore: resultData.homeScore,
-      awayScore: resultData.awayScore,
-      status: resultData.status,
-      isCompleted: resultData.isCompleted,
-      resultUpdatedAt: serverTimestamp(),
-      externalId: resultData.externalId
-    });
+      // Find matches that need API calls
+      const uncachedMatchIds = matchIds.filter(id => !results.has(id));
 
-    console.log(`Match ${matchId} result updated:`, resultData);
-    return true;
-  } catch (error) {
-    console.error('Error updating match result:', error);
-    throw error;
-  }
-};
+      if (uncachedMatchIds.length === 0) {
+        console.log('All results found in cache');
+        return results;
+      }
 
-/**
- * Find matching Firestore match for API match data
- * @param {Object} apiMatch - Normalized match data from API
- * @param {Array} firestoreMatches - Array of Firestore match documents
- */
-export const findMatchingFirestoreMatch = (apiMatch, firestoreMatches) => {
-  return firestoreMatches.find(match => {
-    // Try to match by external ID first
-    if (match.externalId && match.externalId === apiMatch.externalId) {
-      return true;
-    }
+      // Limit API calls to avoid hitting rate limits
+      const apiCallIds = uncachedMatchIds.slice(0, maxApiCalls);
 
-    // Fall back to team name and date matching
-    const homeTeamMatch = match.homeTeam?.toLowerCase().includes(apiMatch.homeTeam?.toLowerCase()) ||
-                         apiMatch.homeTeam?.toLowerCase().includes(match.homeTeam?.toLowerCase());
+      if (apiCallIds.length < uncachedMatchIds.length) {
+        console.warn(`Limited API calls to ${maxApiCalls} out of ${uncachedMatchIds.length} needed`);
+      }
 
-    const awayTeamMatch = match.awayTeam?.toLowerCase().includes(apiMatch.awayTeam?.toLowerCase()) ||
-                         apiMatch.awayTeam?.toLowerCase().includes(match.awayTeam?.toLowerCase());
-
-    const dateMatch = match.date === apiMatch.date;
-
-    return homeTeamMatch && awayTeamMatch && dateMatch;
-  });
-};
-
-/**
- * Fetch pending matches from Firestore (matches without results)
- * @param {string} leagueId - League identifier (optional)
- */
-export const fetchPendingMatches = async (leagueId = null) => {
-  try {
-    const matchesRef = collection(db, 'matches');
-    let q;
-
-    if (leagueId) {
-      q = query(
-        matchesRef,
-        where('league', '==', leagueId),
-        where('isCompleted', '==', false)
-      );
-    } else {
-      q = query(matchesRef, where('isCompleted', '==', false));
-    }
-
-    const querySnapshot = await getDocs(q);
-    const matches = [];
-
-    querySnapshot.forEach((doc) => {
-      matches.push({
-        id: doc.id,
-        ...doc.data()
-      });
-    });
-
-    return matches;
-  } catch (error) {
-    console.error('Error fetching pending matches:', error);
-    throw error;
-  }
-};
-
-/**
- * Main function to check and update match results
- * @param {string} leagueId - League identifier (optional)
- */
-export const checkAndUpdateMatchResults = async (leagueId = null) => {
-  try {
-    console.log('Starting match result check...', leagueId ? `for league: ${leagueId}` : 'for all leagues');
-
-    // Get pending matches from Firestore
-    const pendingMatches = await fetchPendingMatches(leagueId);
-
-    if (pendingMatches.length === 0) {
-      console.log('No pending matches found');
-      return { updated: 0, errors: 0 };
-    }
-
-    console.log(`Found ${pendingMatches.length} pending matches`);
-
-    // Get completed matches from API
-    let apiMatches = [];
-
-    if (leagueId) {
-      apiMatches = await fetchCompletedMatches(leagueId);
-    } else {
-      // Fetch for all supported leagues
-      for (const league of Object.keys(LEAGUE_MAPPINGS)) {
+      // Fetch from API in sequence to respect rate limits
+      for (const matchId of apiCallIds) {
         try {
-          const leagueMatches = await fetchCompletedMatches(league);
-          apiMatches = [...apiMatches, ...leagueMatches];
+          const result = await this.fetchMatchResult(matchId, { forceRefresh: true });
+          if (result) {
+            results.set(matchId, result);
+          }
+
+          // Add delay between API calls to respect rate limits (30 calls/minute = 2 seconds)
+          if (apiCallIds.indexOf(matchId) < apiCallIds.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 2100));
+          }
         } catch (error) {
-          console.error(`Error fetching matches for league ${league}:`, error);
+          console.error(`Failed to fetch result for match ${matchId}:`, error);
         }
       }
+
+      return results;
+    } catch (error) {
+      console.error('Error fetching multiple results:', error);
+      return new Map();
     }
+  },
 
-    console.log(`Found ${apiMatches.length} completed matches from API`);
+  /**
+   * Process match results and update predictions
+   */
+  async processAndScoreMatches(matchIds) {
+    try {
+      const results = await this.fetchMultipleResults(matchIds);
+      const processedCount = { total: 0, success: 0, errors: 0 };
 
-    // Normalize API match data
-    const normalizedMatches = apiMatches.map(normalizeMatchData);
+      for (const [matchId, result] of results) {
+        processedCount.total++;
 
-    // Match and update results
-    let updated = 0;
-    let errors = 0;
-
-    for (const firestoreMatch of pendingMatches) {
-      try {
-        const matchingApiMatch = findMatchingFirestoreMatch(firestoreMatch, normalizedMatches);
-
-        if (matchingApiMatch && matchingApiMatch.isCompleted) {
-          await updateMatchResult(firestoreMatch.id, {
-            homeScore: matchingApiMatch.homeScore,
-            awayScore: matchingApiMatch.awayScore,
-            status: matchingApiMatch.status,
-            isCompleted: true,
-            externalId: matchingApiMatch.externalId
-          });
-
-          updated++;
-          console.log(`Updated match: ${firestoreMatch.homeTeam} vs ${firestoreMatch.awayTeam}`);
+        try {
+          if (result && result.finalScore) {
+            await processMatchResult(matchId, result);
+            processedCount.success++;
+            console.log(`Processed and scored match: ${matchId}`);
+          }
+        } catch (error) {
+          processedCount.errors++;
+          console.error(`Error processing match ${matchId}:`, error);
         }
-      } catch (error) {
-        console.error(`Error updating match ${firestoreMatch.id}:`, error);
-        errors++;
       }
+
+      return processedCount;
+    } catch (error) {
+      console.error('Error processing and scoring matches:', error);
+      return { total: 0, success: 0, errors: 1 };
     }
+  },
 
-    console.log(`Match result check completed. Updated: ${updated}, Errors: ${errors}`);
+  /**
+   * Get finished matches that need result processing
+   */
+  async getFinishedMatchesNeedingResults(filters = {}) {
+    try {
+      const finishedMatches = await footballApi.getFinishedMatches({
+        competitions: filters.competitions,
+        limit: filters.limit || 20
+      });
 
-    return { updated, errors, totalPending: pendingMatches.length };
-  } catch (error) {
-    console.error('Error in checkAndUpdateMatchResults:', error);
-    throw error;
+      // Filter out matches that already have cached results
+      const matchIds = finishedMatches.map(match => match.id);
+      const cachedResults = await matchResultCacheService.getCachedResultsForMatches(matchIds);
+
+      const matchesNeedingResults = finishedMatches.filter(match => {
+        return !cachedResults.has(match.id);
+      });
+
+      return matchesNeedingResults;
+    } catch (error) {
+      console.error('Error getting finished matches needing results:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Background job to update recent match results
+   */
+  async updateRecentResults(options = {}) {
+    try {
+      const { maxMatches = 10, competitions = ['turkish-super-league'] } = options;
+
+      console.log('Starting background result update...');
+
+      const matchesNeedingResults = await this.getFinishedMatchesNeedingResults({
+        competitions,
+        limit: maxMatches
+      });
+
+      if (matchesNeedingResults.length === 0) {
+        console.log('No matches need result updates');
+        return { updated: 0, processed: 0 };
+      }
+
+      console.log(`Found ${matchesNeedingResults.length} matches needing results`);
+
+      const matchIds = matchesNeedingResults.map(match => match.id);
+      const processedCount = await this.processAndScoreMatches(matchIds);
+
+      console.log('Background result update completed:', processedCount);
+
+      return {
+        updated: processedCount.success,
+        processed: processedCount.total,
+        errors: processedCount.errors
+      };
+    } catch (error) {
+      console.error('Error in background result update:', error);
+      return { updated: 0, processed: 0, errors: 1 };
+    }
   }
 };
 
-/**
- * Get live match updates for display
- * @param {string} leagueId - League identifier (optional)
- */
-export const getLiveMatchUpdates = async (leagueId = null) => {
-  try {
-    const liveScores = await fetchLiveScores(leagueId);
-    return liveScores.map(normalizeMatchData);
-  } catch (error) {
-    console.error('Error getting live match updates:', error);
-    throw error;
-  }
-};
+export default matchResultService;

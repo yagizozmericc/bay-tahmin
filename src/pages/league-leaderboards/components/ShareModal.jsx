@@ -10,7 +10,7 @@ const ShareModal = ({ isOpen, onClose, userRank, leagueName }) => {
   if (!isOpen) return null;
 
   const shareUrl = `https://scoreguess.pro/league-leaderboards?ref=${userRank?.id}`;
-  const shareText = `I'm ranked #${userRank?.position} in ${leagueName} with ${userRank?.totalPoints} points! 🏆 Join me on Bay Tahmin Pro and test your football prediction skills!`;
+  const shareText = `I'm ranked #${userRank?.position} in ${leagueName} with ${userRank?.totalPoints} points! 🏆 Join me on Scorism and test your football prediction skills!`;
 
   const handleCopyLink = async () => {
     try {

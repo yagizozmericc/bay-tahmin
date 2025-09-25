@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
+import { isActivePrediction, hasCompleteScore } from '../../../utils/predictionUtils';
 
 const PredictionSummary = ({
   predictions,
@@ -26,15 +27,11 @@ const PredictionSummary = ({
         return;
       }
 
-      const hasPrediction = prediction.homeScore !== ''
-        || prediction.awayScore !== ''
-        || (Array.isArray(prediction.scorers) && prediction.scorers.length > 0);
-
-      if (hasPrediction) {
+      if (isActivePrediction(prediction)) {
         predictedMatches += 1;
       }
 
-      if (prediction.homeScore !== '' && prediction.awayScore !== '') {
+      if (hasCompleteScore(prediction)) {
         completePredictions += 1;
       }
     });
@@ -47,7 +44,7 @@ const PredictionSummary = ({
   })();
 
   const recentPredictions = predictionEntries
-    .filter(([_, prediction]) => prediction && (prediction.homeScore !== '' || prediction.awayScore !== ''))
+    .filter(([_, prediction]) => isActivePrediction(prediction))
     .slice(0, 3)
     .map(([matchId, prediction]) => ({
       match: matchesArray.find((match) => match?.id === matchId),

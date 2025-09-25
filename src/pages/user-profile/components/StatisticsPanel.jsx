@@ -1,35 +1,59 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import Icon from '../../../components/AppIcon';
 
-const StatisticsPanel = ({ statistics }) => {
-  const monthlyData = [
-    { month: 'Sep', predictions: 45, correct: 28 },
-    { month: 'Oct', predictions: 52, correct: 34 },
-    { month: 'Nov', predictions: 38, correct: 25 },
-    { month: 'Dec', predictions: 41, correct: 29 },
-    { month: 'Jan', predictions: 48, correct: 32 },
-    { month: 'Feb', predictions: 44, correct: 31 }
+const StatisticsPanel = ({ statistics, onRefresh, isRefreshing }) => {
+  // Use real data from statistics prop, with fallback to default
+  const monthlyData = statistics?.monthlyData || [
+    { month: 'Sep', predictions: 0, correct: 0 },
+    { month: 'Oct', predictions: 0, correct: 0 },
+    { month: 'Nov', predictions: 0, correct: 0 },
+    { month: 'Dec', predictions: 0, correct: 0 },
+    { month: 'Jan', predictions: 0, correct: 0 },
+    { month: 'Feb', predictions: 0, correct: 0 }
   ];
 
-  const competitionData = [
-    { name: 'Champions League', value: 35, color: '#1B5E20' },
-    { name: 'Turkish Super League', value: 28, color: '#2E7D32' },
-    { name: 'Premier League', value: 22, color: '#388E3C' },
-    { name: 'Other', value: 15, color: '#66BB6A' }
+  const competitionData = statistics?.competitionData || [
+    { name: 'No Data', value: 1, color: '#66BB6A' }
   ];
 
-  const accuracyData = [
-    { week: 'W1', accuracy: 65 },
-    { week: 'W2', accuracy: 72 },
-    { week: 'W3', accuracy: 68 },
-    { week: 'W4', accuracy: 75 },
-    { week: 'W5', accuracy: 71 },
-    { week: 'W6', accuracy: 78 }
+  const accuracyData = statistics?.accuracyTrend || [
+    { week: 'W1', accuracy: 0 },
+    { week: 'W2', accuracy: 0 },
+    { week: 'W3', accuracy: 0 },
+    { week: 'W4', accuracy: 0 },
+    { week: 'W5', accuracy: 0 },
+    { week: 'W6', accuracy: 0 }
   ];
 
   return (
     <div className="space-y-6">
+      {/* Header with Refresh Button */}
+      {onRefresh && (
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">Statistics Overview</h2>
+            {statistics?.lastCalculated && (
+              <p className="text-sm text-muted-foreground">
+                Last updated: {new Date(statistics.lastCalculated).toLocaleString()}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className="flex items-center space-x-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Icon
+              name="RefreshCw"
+              size={16}
+              className={isRefreshing ? 'animate-spin' : ''}
+            />
+            <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
+        </div>
+      )}
+
       {/* Overview Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-card border border-border rounded-lg p-4">
@@ -110,9 +134,9 @@ const StatisticsPanel = ({ statistics }) => {
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                 <XAxis dataKey="month" stroke="var(--color-muted-foreground)" />
                 <YAxis stroke="var(--color-muted-foreground)" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'var(--color-card)', 
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'var(--color-card)',
                     border: '1px solid var(--color-border)',
                     borderRadius: '8px'
                   }}

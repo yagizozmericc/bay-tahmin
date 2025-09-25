@@ -95,7 +95,7 @@ const LeagueCard = ({ league, onEdit, onDelete, onViewMembers, onGenerateInvite 
               </Button>
             </>
           )}
-          <Link to="/league-leaderboards">
+          <Link to={`/league-leaderboards/${league?.id}`}>
             <Button
               variant="default"
               size="sm"

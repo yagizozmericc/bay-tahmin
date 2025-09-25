@@ -5,6 +5,7 @@ import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
 import { COMPETITIONS } from '../../../hooks/useMatches';
+import { isActivePrediction } from '../../../utils/predictionUtils';
 
 const MAX_SCORERS = 3;
 
@@ -43,7 +44,9 @@ const MatchCard = ({
   canEdit = false,
   savingState,
   lastSavedAt,
-  saveError
+  saveError,
+  matchResult = null,
+  showResult = false
 }) => {
   const [homeScore, setHomeScore] = useState(toDisplayScore(userPrediction?.homeScore));
   const [awayScore, setAwayScore] = useState(toDisplayScore(userPrediction?.awayScore));
@@ -195,7 +198,7 @@ const MatchCard = ({
       );
     }
 
-    if (homeScore !== '' || awayScore !== '' || selectedScorers.some(Boolean)) {
+    if (isActivePrediction({ homeScore, awayScore, scorers: selectedScorers })) {
       const label = lastSavedAt
         ? `Saved at ${new Date(lastSavedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
         : 'Saved';
@@ -237,30 +240,59 @@ const MatchCard = ({
 
         <div className="flex items-center space-x-4 mx-6">
           <div className="text-center">
-            <p className="text-sm text-muted-foreground mb-1">Score Prediction</p>
-            <div className="flex items-center space-x-2">
-              <Input
-                type="number"
-                value={homeScore}
-                onChange={(e) => handleScoreChange('home', e?.target?.value)}
-                className="w-16 text-center"
-                min="0"
-                max="20"
-                disabled={!isEditable}
-                placeholder="0"
-              />
-              <span className="text-lg font-bold text-muted-foreground">-</span>
-              <Input
-                type="number"
-                value={awayScore}
-                onChange={(e) => handleScoreChange('away', e?.target?.value)}
-                className="w-16 text-center"
-                min="0"
-                max="20"
-                disabled={!isEditable}
-                placeholder="0"
-              />
-            </div>
+            {showResult && matchResult?.finalScore ? (
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Final Result</p>
+                <div className="flex items-center space-x-2">
+                  <div className="w-16 h-12 bg-muted rounded-lg flex items-center justify-center">
+                    <span className="text-2xl font-bold text-foreground">
+                      {matchResult.finalScore.home ?? '-'}
+                    </span>
+                  </div>
+                  <span className="text-lg font-bold text-muted-foreground">-</span>
+                  <div className="w-16 h-12 bg-muted rounded-lg flex items-center justify-center">
+                    <span className="text-2xl font-bold text-foreground">
+                      {matchResult.finalScore.away ?? '-'}
+                    </span>
+                  </div>
+                </div>
+                {userPrediction && (userPrediction.homeScore !== '' || userPrediction.awayScore !== '') && (
+                  <div className="mt-2">
+                    <p className="text-xs text-muted-foreground">Your Prediction</p>
+                    <div className="text-sm text-muted-foreground">
+                      {userPrediction.homeScore || '0'} - {userPrediction.awayScore || '0'}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Score Prediction</p>
+                <div className="flex items-center space-x-2">
+                  <Input
+                    type="number"
+                    value={homeScore}
+                    onChange={(e) => handleScoreChange('home', e?.target?.value)}
+                    className="w-16 text-center"
+                    min="0"
+                    max="20"
+                    disabled={!isEditable}
+                    placeholder="0"
+                  />
+                  <span className="text-lg font-bold text-muted-foreground">-</span>
+                  <Input
+                    type="number"
+                    value={awayScore}
+                    onChange={(e) => handleScoreChange('away', e?.target?.value)}
+                    className="w-16 text-center"
+                    min="0"
+                    max="20"
+                    disabled={!isEditable}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -339,6 +371,50 @@ const MatchCard = ({
       </div>
 
       {renderSaveStatus()}
+
+      {showResult && matchResult && userPrediction && userPrediction.status === 'scored' && (
+        <div className="mt-4 p-4 bg-accent/10 border border-accent/20 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-foreground mb-1">Prediction Result</h4>
+              <div className="space-y-1 text-sm">
+                {userPrediction.evaluation?.exactScore && (
+                  <div className="flex items-center space-x-2">
+                    <Icon name="Target" size={16} className="text-success" />
+                    <span className="text-success font-medium">Exact Score! (+3 points)</span>
+                  </div>
+                )}
+                {userPrediction.evaluation?.correctOutcome && !userPrediction.evaluation?.exactScore && (
+                  <div className="flex items-center space-x-2">
+                    <Icon name="CheckCircle" size={16} className="text-success" />
+                    <span className="text-success">Correct Outcome (+1 point)</span>
+                  </div>
+                )}
+                {userPrediction.evaluation?.scorerHits && userPrediction.evaluation.scorerHits.length > 0 && (
+                  <div className="flex items-center space-x-2">
+                    <Icon name="Users" size={16} className="text-success" />
+                    <span className="text-success">
+                      {userPrediction.evaluation.scorerHits.length} correct scorer(s) (+{userPrediction.evaluation.scorerHits.length} points)
+                    </span>
+                  </div>
+                )}
+                {(!userPrediction.evaluation?.correctOutcome && userPrediction.evaluation?.points === 0) && (
+                  <div className="flex items-center space-x-2">
+                    <Icon name="X" size={16} className="text-muted-foreground" />
+                    <span className="text-muted-foreground">No points earned</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-foreground">
+                {userPrediction.points || 0}
+              </div>
+              <div className="text-sm text-muted-foreground">points</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

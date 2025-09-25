@@ -29,7 +29,7 @@ const JoinLeagueSection = ({ onJoinLeague }) => {
       setPublicLeagues(leagues);
     } catch (err) {
       console.error('Error loading public leagues:', err);
-      setError('Failed to load public leagues');
+      setError(`Failed to load public leagues: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -92,6 +92,7 @@ const JoinLeagueSection = ({ onJoinLeague }) => {
     setSelectedLeague(league);
   };
 
+
   return (
     <div className="space-y-6">
       {/* Error Message */}
@@ -134,6 +135,7 @@ const JoinLeagueSection = ({ onJoinLeague }) => {
           </Button>
         </div>
       </div>
+
       {/* Browse Public Leagues */}
       <div className="bg-card border border-border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">

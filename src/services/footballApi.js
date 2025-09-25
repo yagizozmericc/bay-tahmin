@@ -198,40 +198,81 @@ class FootballApiClient {
     this.baseURL = API_URL;
   }
 
-  async request(endpoint, options = {}) {
+  async request(endpoint, options = {}, retries = 3) {
     const url = `${this.baseURL}${ensureLeadingSlash(endpoint)}`;
+    let lastError;
 
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        ...options,
-        headers: {
-          Accept: 'application/json',
-          ...(options.headers || {})
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        console.log(`API request attempt ${attempt}/${retries}: ${url}`);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+        const response = await fetch(url, {
+          method: 'GET',
+          ...options,
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'Football-Predictions-App/1.0',
+            ...(options.headers || {})
+          },
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '');
+
+          if (response.status === 429) {
+            throw new Error('API rate limit exceeded. Please try again later.');
+          }
+
+          if (response.status >= 500) {
+            throw new Error('TheSportsDB service is temporarily unavailable.');
+          }
+
+          throw new Error(
+            `TheSportsDB request failed: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`
+          );
         }
-      });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `TheSportsDB request failed: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`
-        );
+        const data = await response.json();
+
+        if (data?.error) {
+          throw new Error(data.error);
+        }
+
+        console.log(`API request successful on attempt ${attempt}`);
+        return data;
+
+      } catch (error) {
+        lastError = error;
+
+        console.error(`API request attempt ${attempt} failed:`, error.message);
+
+        if (error.name === 'AbortError') {
+          lastError = new Error('API request timed out. Please check your connection.');
+        } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
+          lastError = new Error('Network error while contacting TheSportsDB. Please check your internet connection.');
+        }
+
+        // Don't retry on rate limit or client errors
+        if (error.message.includes('rate limit') || (error.message.includes('failed:') && error.message.includes('4'))) {
+          throw lastError;
+        }
+
+        // Wait before retrying (exponential backoff)
+        if (attempt < retries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+          console.log(`Waiting ${delay}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
-
-      const data = await response.json();
-
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      return data;
-    } catch (error) {
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        throw new Error('Network error while contacting TheSportsDB.');
-      }
-
-      throw error;
     }
+
+    throw new Error(`API request failed after ${retries} attempts. Last error: ${lastError.message}`);
   }
 
   async getMatches(filters = {}) {
@@ -346,6 +387,11 @@ class FootballApiClient {
           results.push({
             ...match,
             status: 'FINISHED',
+            finalScore: {
+              home: event.intHomeScore !== null ? Number(event.intHomeScore) : null,
+              away: event.intAwayScore !== null ? Number(event.intAwayScore) : null
+            },
+            // Keep the old format for backwards compatibility
             score: {
               home: event.intHomeScore !== null ? Number(event.intHomeScore) : null,
               away: event.intAwayScore !== null ? Number(event.intAwayScore) : null
@@ -362,6 +408,49 @@ class FootballApiClient {
     }
 
     return results;
+  }
+
+  async getEventResult(eventId) {
+    try {
+      if (!eventId) {
+        throw new Error('Event ID is required');
+      }
+
+      const response = await this.request(`/eventresults.php?id=${eventId}`);
+
+      if (!response?.events || !Array.isArray(response.events) || response.events.length === 0) {
+        return null;
+      }
+
+      const event = response.events[0];
+
+      return {
+        id: event.idEvent,
+        matchId: event.idEvent,
+        finalScore: {
+          home: event.intHomeScore !== null ? Number(event.intHomeScore) : null,
+          away: event.intAwayScore !== null ? Number(event.intAwayScore) : null
+        },
+        status: normalizeStatus(event.strStatus) || 'FINISHED',
+        homeTeam: {
+          id: event.idHomeTeam,
+          name: event.strHomeTeam,
+          shortName: event.strHomeTeamShort || event.strHomeTeam
+        },
+        awayTeam: {
+          id: event.idAwayTeam,
+          name: event.strAwayTeam,
+          shortName: event.strAwayTeamShort || event.strAwayTeam
+        },
+        competition: event.strLeague || '',
+        kickoffTime: parseKickoffTime(event),
+        venue: event.strVenue || 'TBD',
+        scorers: [] // TheSportsDB free doesn't provide detailed scorer info
+      };
+    } catch (error) {
+      console.error('Error fetching event result:', error);
+      throw error;
+    }
   }
 
   async getLeagueTable(leagueId, season = '2024-2025') {
@@ -383,32 +472,47 @@ class FootballApiClient {
 
   async testApiAccess() {
     try {
-      const summaries = await Promise.all(
-        DEFAULT_COMPETITIONS.map(async (slug) => {
-          const league = LEAGUES[slug];
-          const response = await this.request(`/eventsnextleague.php?id=${league.id}`);
-          const events = Array.isArray(response?.events) ? response.events : [];
-          const validEvents = events.filter((event) => eventMatchesLeague(event, league));
+      console.log('Testing API access...');
 
-          return {
-            slug,
-            name: league.name,
-            matchCount: validEvents.length
-          };
-        })
-      );
+      // Use a simple endpoint that should work - Turkish Super Lig
+      const response = await this.request(`/eventspastleague.php?id=${LEAGUES['turkish-super-league'].id}`, {}, 1);
+
+      const success = response && (response.events || response.error !== undefined);
 
       return {
-        success: true,
-        message: 'TheSportsDB connection succeeded.',
-        details: summaries
+        success: success,
+        message: success ? 'API connection successful' : 'API returned empty response',
+        endpoint: this.baseURL,
+        dataReceived: !!response,
+        eventCount: response?.events ? response.events.length : 0
       };
     } catch (error) {
+      console.error('API test failed:', error);
+
       return {
         success: false,
-        message: error.message
+        message: error.message,
+        endpoint: this.baseURL,
+        errorType: error.name,
+        suggestion: this.getErrorSuggestion(error)
       };
     }
+  }
+
+  getErrorSuggestion(error) {
+    if (error.message.includes('Network error') || error.message.includes('fetch')) {
+      return 'Check your internet connection and firewall settings';
+    }
+    if (error.message.includes('timeout') || error.message.includes('AbortError')) {
+      return 'API server is slow or unresponsive. Try again later';
+    }
+    if (error.message.includes('rate limit')) {
+      return 'API rate limit exceeded. Wait a few minutes before trying again';
+    }
+    if (error.message.includes('500') || error.message.includes('unavailable')) {
+      return 'TheSportsDB service is temporarily down. Check their status page';
+    }
+    return 'Unknown API error. Try refreshing the page';
   }
 }
 
@@ -419,6 +523,7 @@ export const {
   getCompetitions,
   getLiveMatches,
   getFinishedMatches,
+  getEventResult,
   getLeagueTable,
   getTurkishLeagueTable,
   getChampionsLeagueTable,

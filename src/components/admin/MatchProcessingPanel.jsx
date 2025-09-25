@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
 import Button from '../ui/Button';
 import Icon from '../AppIcon';
-import {
-  triggerManualProcessing,
-  quickMatchCheck,
-  getProcessingStatus
-} from '../../services/matchProcessingService';
+import { matchResultService } from '../../services/matchResultService';
+import { footballApi } from '../../services/footballApi';
 
 const MatchProcessingPanel = () => {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -19,8 +16,19 @@ const MatchProcessingPanel = () => {
     setResults(null);
 
     try {
-      const result = await triggerManualProcessing();
-      setResults(result);
+      const result = await matchResultService.updateRecentResults({
+        maxMatches: 20,
+        competitions: ['turkish-super-league', 'champions-league']
+      });
+
+      setResults({
+        success: true,
+        quickCheck: false,
+        updated: result.updated,
+        processed: result.processed,
+        errors: result.errors || 0,
+        completedAt: new Date().toISOString()
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -34,8 +42,18 @@ const MatchProcessingPanel = () => {
     setResults(null);
 
     try {
-      const result = await quickMatchCheck();
-      setResults({ success: true, quickCheck: true, ...result });
+      const result = await matchResultService.updateRecentResults({
+        maxMatches: 5,
+        competitions: ['turkish-super-league']
+      });
+
+      setResults({
+        success: true,
+        quickCheck: true,
+        matchesUpdated: result.updated,
+        predictionsScored: result.processed,
+        errors: result.errors
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -43,7 +61,16 @@ const MatchProcessingPanel = () => {
     }
   };
 
-  const status = getProcessingStatus();
+  const getStatus = () => {
+    return {
+      lastRun: localStorage.getItem('lastResultUpdate') || null,
+      apiProvider: 'TheSportsDB (Free)',
+      supportedLeagues: ['Turkish Super Lig', 'Champions League'],
+      processingInterval: '30 minutes (recommended)'
+    };
+  };
+
+  const status = getStatus();
 
   return (
     <div className="bg-card border border-border rounded-lg p-6">

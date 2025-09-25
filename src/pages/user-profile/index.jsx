@@ -8,6 +8,8 @@ import AchievementsPanel from './components/AchievementsPanel';
 import SettingsPanel from './components/SettingsPanel';
 import { useAuth } from '../../context/AuthContext';
 import { getUserProfile, createOrUpdateUserProfile } from '../../services/userProfileService';
+import { userStatisticsService } from '../../services/userStatisticsService';
+import { achievementService } from '../../services/achievementService';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
 
@@ -18,47 +20,13 @@ const UserProfile = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [shareMessage, setShareMessage] = useState(null);
+  const [statistics, setStatistics] = useState(null);
+  const [statisticsLoading, setStatisticsLoading] = useState(true);
+  const [statisticsRefreshing, setStatisticsRefreshing] = useState(false);
+  const [achievements, setAchievements] = useState(null);
+  const [achievementsLoading, setAchievementsLoading] = useState(true);
+  const [achievementsRefreshing, setAchievementsRefreshing] = useState(false);
 
-  const [statistics] = useState({
-    totalPredictions: 247,
-    accuracy: 73.2,
-    bestStreak: 12,
-    currentStreak: 5,
-    totalPoints: 1847,
-    exactScores: 28,
-    correctWinners: 181,
-    correctScorers: 94,
-    avgPointsPerMatch: 7.5,
-    leaguesJoined: 8,
-    globalRank: 1247,
-    daysActive: 127,
-    achievementsUnlocked: 15
-  });
-
-  const [achievements] = useState({
-    unlocked: 15,
-    total: 24,
-    points: 2350,
-    rare: 4,
-    recent: [
-      {
-        title: "Hot Streak",
-        description: "Achieved a 10-match correct prediction streak",
-        icon: "Flame",
-        rarity: "epic",
-        points: 250,
-        timeAgo: "2 days ago"
-      },
-      {
-        title: "Century Club",
-        description: "Made 100 predictions",
-        icon: "Trophy",
-        rarity: "rare",
-        points: 150,
-        timeAgo: "1 week ago"
-      }
-    ]
-  });
 
   const [settings, setSettings] = useState({
     language: 'en',
@@ -73,8 +41,10 @@ const UserProfile = () => {
   });
 
   useEffect(() => {
-    document.title = 'User Profile - Bay Tahmin Pro';
+    document.title = 'User Profile - Scorism';
     loadUserProfile();
+    loadUserStatistics();
+    loadUserAchievements();
   }, [authUser]);
 
   const loadUserProfile = async () => {
@@ -123,6 +93,92 @@ const UserProfile = () => {
     }
   };
 
+  const loadUserStatistics = async () => {
+    if (!authUser?.uid) {
+      setStatisticsLoading(false);
+      return;
+    }
+
+    try {
+      setStatisticsLoading(true);
+      const userStats = await userStatisticsService.getUserStatistics(authUser.uid);
+      setStatistics(userStats);
+
+      // Also trigger achievement calculation when statistics are loaded
+      if (userStats && !achievementsLoading) {
+        try {
+          const userAchievements = await achievementService.getUserAchievementData(authUser.uid, userStats);
+          setAchievements(userAchievements);
+        } catch (achievementError) {
+          console.error('Error loading achievements after stats:', achievementError);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading user statistics:', err);
+      // Set default statistics on error
+      setStatistics(userStatisticsService.getDefaultStatistics());
+    } finally {
+      setStatisticsLoading(false);
+    }
+  };
+
+  const handleRefreshStatistics = async () => {
+    if (!authUser?.uid || statisticsRefreshing) return;
+
+    try {
+      setStatisticsRefreshing(true);
+      // Force refresh by passing true
+      const userStats = await userStatisticsService.getUserStatistics(authUser.uid, true);
+      setStatistics(userStats);
+    } catch (err) {
+      console.error('Error refreshing user statistics:', err);
+      // Keep current statistics on error
+    } finally {
+      setStatisticsRefreshing(false);
+    }
+  };
+
+  const loadUserAchievements = async () => {
+    if (!authUser?.uid) {
+      setAchievementsLoading(false);
+      return;
+    }
+
+    try {
+      setAchievementsLoading(true);
+      // Wait for statistics to be available if possible
+      const currentStats = statistics || await userStatisticsService.getUserStatistics(authUser.uid);
+      const userAchievements = await achievementService.getUserAchievementData(authUser.uid, currentStats);
+      setAchievements(userAchievements);
+    } catch (err) {
+      console.error('Error loading user achievements:', err);
+      // Set default achievements on error
+      setAchievements(achievementService.getDefaultAchievements());
+    } finally {
+      setAchievementsLoading(false);
+    }
+  };
+
+  const handleRefreshAchievements = async () => {
+    if (!authUser?.uid || achievementsRefreshing) return;
+
+    try {
+      setAchievementsRefreshing(true);
+      // Get current statistics for achievement calculation
+      const currentStats = await userStatisticsService.getUserStatistics(authUser.uid, true);
+      // Force refresh achievements
+      const userAchievements = await achievementService.getUserAchievementData(authUser.uid, currentStats, true);
+      setAchievements(userAchievements);
+      // Also update statistics if we refreshed them
+      setStatistics(currentStats);
+    } catch (err) {
+      console.error('Error refreshing user achievements:', err);
+      // Keep current achievements on error
+    } finally {
+      setAchievementsRefreshing(false);
+    }
+  };
+
   const handleProfileSave = async (updatedData) => {
     try {
       const updatedProfile = await createOrUpdateUserProfile(authUser.uid, updatedData);
@@ -152,9 +208,39 @@ const UserProfile = () => {
       case 'profile':
         return <ProfileForm user={user} onSave={handleProfileSave} />;
       case 'statistics':
-        return <StatisticsPanel statistics={statistics} />;
+        return (
+          <div>
+            {statisticsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Icon name="Loader2" size={32} className="text-primary animate-spin" />
+                <span className="ml-2 text-muted-foreground">Loading statistics...</span>
+              </div>
+            ) : (
+              <StatisticsPanel
+                statistics={statistics}
+                onRefresh={handleRefreshStatistics}
+                isRefreshing={statisticsRefreshing}
+              />
+            )}
+          </div>
+        );
       case 'achievements':
-        return <AchievementsPanel achievements={achievements} />;
+        return (
+          <div>
+            {achievementsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Icon name="Loader2" size={32} className="text-primary animate-spin" />
+                <span className="ml-2 text-muted-foreground">Loading achievements...</span>
+              </div>
+            ) : (
+              <AchievementsPanel
+                achievements={achievements}
+                onRefresh={handleRefreshAchievements}
+                isRefreshing={achievementsRefreshing}
+              />
+            )}
+          </div>
+        );
       case 'settings':
         return <SettingsPanel settings={settings} onSettingsUpdate={handleSettingsUpdate} />;
       default:

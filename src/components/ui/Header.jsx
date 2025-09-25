@@ -4,13 +4,18 @@ import Icon from '../AppIcon';
 import Button from './Button';
 import ThemeToggle from './ThemeToggle';
 import { useAuth } from '../../context/AuthContext';
+import { notificationService } from '../../services/notificationService';
 
 const Header = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isLeagueSubNavOpen, setIsLeagueSubNavOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const userMenuRef = useRef(null);
+  const notificationMenuRef = useRef(null);
   const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
 
   const displayName = (user?.displayName || '').trim() || (user?.email ? user.email.split('@')[0] : '');
@@ -30,7 +35,13 @@ const Header = () => {
       label: 'Predictions',
       path: '/match-predictions',
       icon: 'Target',
-      badge: 3
+      badge: null
+    },
+    {
+      label: 'Results',
+      path: '/match-results',
+      icon: 'Calendar',
+      badge: null
     },
     {
       label: 'Leagues',
@@ -69,6 +80,10 @@ const Header = () => {
         setIsUserMenuOpen(false);
       }
 
+      if (notificationMenuRef?.current && !notificationMenuRef?.current?.contains(event?.target)) {
+        setIsNotificationMenuOpen(false);
+      }
+
       // Close league submenu when clicking outside
       if (!event?.target?.closest('.relative')) {
         setIsLeagueSubNavOpen(false);
@@ -82,8 +97,23 @@ const Header = () => {
   useEffect(() => {
     if (!isAuthenticated) {
       setIsUserMenuOpen(false);
+      setIsNotificationMenuOpen(false);
+      // Stop listening to notifications
+      if (user?.uid) {
+        notificationService.stopListening(user.uid);
+      }
+    } else if (user?.uid) {
+      // Start listening to notifications when authenticated
+      const unsubscribe = notificationService.listenToNotifications(user.uid, (newNotifications) => {
+        setNotifications(newNotifications);
+        setUnreadCount(newNotifications.length);
+      });
+
+      return () => {
+        if (unsubscribe) unsubscribe();
+      };
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.uid]);
 
   const handleUserMenuToggle = () => {
     if (authLoading || !isAuthenticated) {
@@ -118,117 +148,101 @@ const Header = () => {
     }
   };
 
+  const handleNotificationMenuToggle = () => {
+    if (authLoading || !isAuthenticated) {
+      return;
+    }
+
+    setIsNotificationMenuOpen((prev) => !prev);
+  };
+
+  const handleNotificationClick = async (notification) => {
+    // Mark as read if not already read
+    if (!notification.read) {
+      try {
+        await notificationService.markAsRead(notification.id);
+        // Update local state
+        setNotifications(prev => prev.map(n =>
+          n.id === notification.id ? { ...n, read: true } : n
+        ));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      } catch (error) {
+        console.error('Error marking notification as read:', error);
+      }
+    }
+
+    // Navigate if there's an action URL
+    if (notification.actionUrl) {
+      window.location.href = notification.actionUrl;
+    }
+
+    setIsNotificationMenuOpen(false);
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (!user?.uid || unreadCount === 0) return;
+
+    try {
+      await notificationService.markAllAsRead(user.uid);
+      // Update local state
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+
+  const handleDeleteNotification = async (notificationId, event) => {
+    event.stopPropagation();
+
+    try {
+      await notificationService.deleteNotification(notificationId);
+      // Update local state
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      const deletedNotification = notifications.find(n => n.id === notificationId);
+      if (deletedNotification && !deletedNotification.read) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
+  };
+
   return (
     <>
       {/* Main Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-card border-b border-border">
         <div className="flex items-center justify-between h-16 px-4 lg:px-6">
-          {/* Revolutionary Logo */}
-          <Link to="/user-dashboard" className="flex items-center space-x-3 group animate-float">
-            {/* 3D Logo Container with Advanced Effects */}
+          {/* Scorism Logo */}
+          <Link to="/user-dashboard" className="flex items-center space-x-3 group">
+            {/* Simple Logo Container */}
             <div className="relative">
-              {/* Animated Glow Ring */}
-              <div className="absolute inset-0 w-12 h-12 rounded-2xl animate-logo-glow"></div>
-
-              {/* Multi-layer Glow Effect */}
-              <div className="absolute inset-0 w-12 h-12 bg-gradient-to-br from-primary via-accent to-success rounded-2xl blur-sm opacity-40 group-hover:opacity-70 transition-all duration-500"></div>
-
-              {/* Main Logo Container with 3D Effect */}
-              <div className="relative w-12 h-12 bg-gradient-to-br from-primary via-primary/90 to-primary/70 rounded-2xl shadow-lg group-hover:shadow-2xl transition-all duration-300 group-hover:scale-110 overflow-hidden">
-                {/* Shimmer Effect */}
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 w-1/4 h-full animate-shimmer group-hover:animate-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-
-                {/* Inner 3D Gradient Layers */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-white/10 rounded-2xl"></div>
-                <div className="absolute inset-0 bg-gradient-to-br from-transparent via-primary/20 to-accent/30 rounded-2xl"></div>
-
-                {/* Icon with Enhanced Animation */}
-                <div className="relative flex items-center justify-center w-full h-full">
-                  <Icon
-                    name="Target"
-                    size={24}
-                    color="white"
-                    strokeWidth={2.5}
-                    className="drop-shadow-lg group-hover:rotate-12 group-hover:scale-110 transition-all duration-500 ease-out"
-                  />
-
-                  {/* Subtle Glow Effect */}
-                  <div className="absolute inset-2 rounded-full bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                </div>
-
-                {/* Corner Accents */}
-                <div className="absolute top-1 right-1 w-2 h-2 bg-accent rounded-full shadow-sm opacity-80"></div>
-                <div className="absolute bottom-1 left-1 w-1.5 h-1.5 bg-success rounded-full shadow-sm opacity-60"></div>
-
-                {/* Edge Highlights */}
-                <div className="absolute top-0 left-2 right-2 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent"></div>
-                <div className="absolute bottom-0 left-2 right-2 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+              {/* Main Logo Container */}
+              <div className="relative w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-md group-hover:shadow-lg transition-all duration-200 group-hover:scale-105 flex items-center justify-center">
+                {/* Simple Icon */}
+                <Icon
+                  name="Zap"
+                  size={20}
+                  color="white"
+                  strokeWidth={2}
+                  className="drop-shadow-sm"
+                />
               </div>
             </div>
 
-            {/* Revolutionary Text Design */}
+            {/* Scorism Text */}
             <div className="hidden sm:block">
-              {/* Main Title with Advanced Gradient */}
-              <div className="relative">
-                {/* Background Glow for Text */}
-                <div className="absolute inset-0 text-2xl font-black blur-sm bg-gradient-to-r from-primary/20 via-accent/20 to-success/20 bg-clip-text text-transparent group-hover:from-accent/30 group-hover:via-primary/30 group-hover:to-success/30 transition-all duration-500"></div>
-
-                {/* Main Text with Dynamic Gradient */}
-                <h1
-                  className="relative text-2xl font-black bg-gradient-to-r from-primary via-accent to-success bg-clip-text text-transparent group-hover:from-accent group-hover:via-success group-hover:to-primary transition-all duration-700 bg-[length:200%_100%] animate-gradient-shift"
-                  style={{ backgroundSize: '200% 100%' }}
-                >
-                  Bay Tahmin
-                </h1>
-
-                {/* Holographic Shimmer Overlay */}
-                <div className="absolute inset-0 text-2xl font-black bg-gradient-to-r from-transparent via-white/30 to-transparent bg-clip-text text-transparent opacity-0 group-hover:opacity-100 group-hover:animate-shimmer transition-opacity duration-300"></div>
-              </div>
-
-              {/* Enhanced Pro Badge and Status */}
-              <div className="flex items-center space-x-2 mt-1">
-                {/* 3D Pro Badge */}
-                <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-accent to-warning rounded-full blur-sm opacity-50"></div>
-                  <div className="relative px-3 py-1 bg-gradient-to-br from-accent via-warning to-accent/80 rounded-full shadow-lg overflow-hidden">
-                    {/* Inner Shine */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/20 to-transparent"></div>
-                    <p className="relative text-xs font-black text-white tracking-wider drop-shadow-sm">PRO</p>
-                  </div>
-                </div>
-
-                {/* Status Indicators */}
-                <div className="flex items-center space-x-2">
-                  {/* Live Indicator */}
-                  <div className="flex items-center space-x-1">
-                    <div className="w-2 h-2 bg-success rounded-full"></div>
-                    <p className="text-xs text-success font-semibold">LIVE</p>
-                  </div>
-
-                  {/* Version with Glow */}
-                  <div className="flex items-center space-x-1">
-                    <div className="w-1 h-1 bg-primary rounded-full opacity-60"></div>
-                    <p className="text-xs text-muted-foreground font-medium">v2.0</p>
-                  </div>
-                </div>
-              </div>
+              <h1 className="text-2xl font-bold text-green-600 group-hover:text-green-500 transition-colors duration-200">
+                Scorism
+              </h1>
+              <p className="text-xs text-green-500/70 font-medium">Predict & Score</p>
             </div>
 
-            {/* Enhanced Mobile Compact Version */}
+            {/* Mobile Compact Version */}
             <div className="sm:hidden">
-              <div className="relative">
-                {/* Background Glow for Mobile */}
-                <div className="absolute inset-0 text-lg font-black blur-sm bg-gradient-to-r from-primary/30 to-accent/30 bg-clip-text text-transparent"></div>
-
-                {/* Main Mobile Text */}
-                <h1 className="relative text-lg font-black bg-gradient-to-r from-primary via-accent to-success bg-clip-text text-transparent group-hover:from-accent group-hover:to-primary transition-all duration-500">
-                  BT
-                </h1>
-
-                {/* Mobile Accent Elements */}
-                <div className="absolute -bottom-1 -right-1 w-1.5 h-1.5 bg-accent rounded-full shadow-sm"></div>
-                <div className="absolute -top-1 -left-1 w-1 h-1 bg-success rounded-full opacity-70"></div>
-              </div>
+              <h1 className="text-lg font-bold text-green-600 group-hover:text-green-500 transition-colors duration-200">
+                Scorism
+              </h1>
             </div>
           </Link>
 
@@ -309,14 +323,185 @@ const Header = () => {
               <>
                 <ThemeToggle className="hidden lg:inline-flex" />
 
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="relative hidden lg:inline-flex"
-                >
-                  <Icon name="Bell" size={20} />
-                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-accent rounded-full animate-pulse"></span>
-                </Button>
+                <div className="relative hidden lg:inline-flex" ref={notificationMenuRef}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleNotificationMenuToggle}
+                    className="relative"
+                  >
+                    <Icon name="Bell" size={20} />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-accent text-accent-foreground rounded-full text-xs font-medium flex items-center justify-center animate-pulse">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </Button>
+
+                  {/* Notification Dropdown */}
+                  {isNotificationMenuOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-80 bg-popover border border-border rounded-lg shadow-elevation-2 py-2 animate-scale-in z-50">
+                      {/* Header */}
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                        <h3 className="font-semibold text-foreground">Notifications</h3>
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={handleMarkAllAsRead}
+                            className="text-xs text-primary hover:text-primary/80 transition-colors"
+                          >
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Notifications List */}
+                      <div className="max-h-96 overflow-y-auto">
+                        {notifications.length === 0 ? (
+                          <div className="px-4 py-8 text-center text-muted-foreground">
+                            <Icon name="Bell" size={32} className="mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">No notifications</p>
+                          </div>
+                        ) : (
+                          notifications.map((notification) => (
+                            <div
+                              key={notification.id}
+                              onClick={() => handleNotificationClick(notification)}
+                              className={`px-4 py-3 hover:bg-muted/50 cursor-pointer transition-colors border-l-4 ${
+                                notification.read
+                                  ? 'border-transparent'
+                                  : 'border-primary bg-primary/5'
+                              }`}
+                            >
+                              <div className="flex items-start space-x-3">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                                  notification.priority === 'high'
+                                    ? 'bg-accent/10 text-accent'
+                                    : notification.priority === 'medium'
+                                    ? 'bg-primary/10 text-primary'
+                                    : 'bg-muted text-muted-foreground'
+                                }`}>
+                                  <Icon name={notification.icon || 'Bell'} size={16} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="text-sm font-medium text-foreground truncate">
+                                      {notification.title}
+                                    </h4>
+                                    <button
+                                      onClick={(e) => handleDeleteNotification(notification.id, e)}
+                                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-all"
+                                    >
+                                      <Icon name="X" size={12} />
+                                    </button>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                    {notification.message}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {notificationService.getTimeAgo(notification.createdAt)}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {/* Footer */}
+                      {notifications.length > 0 && (
+                        <div className="px-4 py-2 border-t border-border">
+                          <Link
+                            to="/notifications"
+                            className="text-xs text-primary hover:text-primary/80 transition-colors block text-center"
+                            onClick={() => setIsNotificationMenuOpen(false)}
+                          >
+                            View all notifications
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Mobile Notification Button */}
+                <div className="relative lg:hidden" ref={notificationMenuRef}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleNotificationMenuToggle}
+                    className="relative"
+                  >
+                    <Icon name="Bell" size={18} />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent text-accent-foreground rounded-full text-xs font-medium flex items-center justify-center">
+                        {unreadCount > 9 ? '9' : unreadCount}
+                      </span>
+                    )}
+                  </Button>
+
+                  {/* Mobile Notification Dropdown */}
+                  {isNotificationMenuOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-72 bg-popover border border-border rounded-lg shadow-elevation-2 py-2 animate-scale-in z-50">
+                      {/* Header */}
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                        <h3 className="font-semibold text-foreground">Notifications</h3>
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={handleMarkAllAsRead}
+                            className="text-xs text-primary hover:text-primary/80 transition-colors"
+                          >
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Notifications List */}
+                      <div className="max-h-80 overflow-y-auto">
+                        {notifications.length === 0 ? (
+                          <div className="px-4 py-6 text-center text-muted-foreground">
+                            <Icon name="Bell" size={24} className="mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">No notifications</p>
+                          </div>
+                        ) : (
+                          notifications.slice(0, 5).map((notification) => (
+                            <div
+                              key={notification.id}
+                              onClick={() => handleNotificationClick(notification)}
+                              className={`px-3 py-2 hover:bg-muted/50 cursor-pointer transition-colors border-l-4 ${
+                                notification.read
+                                  ? 'border-transparent'
+                                  : 'border-primary bg-primary/5'
+                              }`}
+                            >
+                              <div className="flex items-start space-x-2">
+                                <div className={`w-6 h-6 rounded flex items-center justify-center flex-shrink-0 ${
+                                  notification.priority === 'high'
+                                    ? 'bg-accent/10 text-accent'
+                                    : notification.priority === 'medium'
+                                    ? 'bg-primary/10 text-primary'
+                                    : 'bg-muted text-muted-foreground'
+                                }`}>
+                                  <Icon name={notification.icon || 'Bell'} size={14} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-sm font-medium text-foreground truncate">
+                                    {notification.title}
+                                  </h4>
+                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                    {notification.message}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {notificationService.getTimeAgo(notification.createdAt)}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <ThemeToggle className="lg:hidden" />
 

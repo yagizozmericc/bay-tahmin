@@ -6,7 +6,9 @@ import NotFound from "pages/NotFound";
 import LeagueManagement from './pages/league-management';
 import UserDashboard from './pages/user-dashboard';
 import MatchPredictions from './pages/match-predictions';
+import MatchResults from './pages/match-results';
 import LeaderboardsPage from './pages/league-leaderboards';
+import LeagueLeaderboardPage from './pages/league-leaderboards/LeagueLeaderboardPage';
 import UserProfile from './pages/user-profile';
 import LoginPage from './pages/auth/Login';
 import RegisterPage from './pages/auth/Register';
@@ -22,7 +24,9 @@ const Routes = () => {
         <Route path="/league-management" element={<LeagueManagement />} />
         <Route path="/user-dashboard" element={<UserDashboard />} />
         <Route path="/match-predictions" element={<MatchPredictions />} />
+        <Route path="/match-results" element={<MatchResults />} />
         <Route path="/league-leaderboards" element={<LeaderboardsPage />} />
+        <Route path="/league-leaderboards/:leagueId" element={<LeagueLeaderboardPage />} />
         <Route path="/user-profile" element={<UserProfile />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

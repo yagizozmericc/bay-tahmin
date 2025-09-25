@@ -254,7 +254,7 @@ const LeagueManagement = () => {
   return (
     <>
       <Helmet>
-        <title>League Management - Bay Tahmin Pro</title>
+        <title>League Management - Scorism</title>
         <meta name="description" content="Create and manage your prediction leagues. Compete with friends in custom football prediction competitions." />
       </Helmet>
 

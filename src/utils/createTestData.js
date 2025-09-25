@@ -1,5 +1,6 @@
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { createLeague, getPublicLeagues } from '../services/leagueService';
 
 const COLLECTIONS = {
   LEADERBOARDS: 'leaderboards',
@@ -80,6 +81,90 @@ export const createTestData = async () => {
   } catch (error) {
     console.error('Error creating test data:', error);
     return { success: false, error: error.message };
+  }
+};
+
+// Test için public lig oluşturma fonksiyonu
+export const createTestPublicLeagues = async (userId, userName, userEmail) => {
+  try {
+    const testLeagues = [
+      {
+        name: 'Premier League Tahmin Ligi',
+        description: 'Premier League maçları için tahmin ligi. Herkese açık ve ücretsiz katılım!',
+        competition: 'premier-league',
+        isPrivate: false,
+        maxMembers: 100,
+        scoringRules: {
+          correctResult: 1,
+          exactScore: 3,
+          correctScorer: 1
+        }
+      },
+      {
+        name: 'Şampiyonlar Ligi Pro',
+        description: 'UEFA Şampiyonlar Ligi maçları için profesyonel tahmin yarışması.',
+        competition: 'champions-league',
+        isPrivate: false,
+        maxMembers: 50,
+        scoringRules: {
+          correctResult: 2,
+          exactScore: 5,
+          correctScorer: 2
+        }
+      },
+      {
+        name: 'Süper Lig Tahmin',
+        description: 'Türkiye Süper Ligi maçları için özel tahmin ligi.',
+        competition: 'turkish-super-league',
+        isPrivate: false,
+        maxMembers: 0, // Unlimited
+        scoringRules: {
+          correctResult: 1,
+          exactScore: 3,
+          correctScorer: 1
+        }
+      }
+    ];
+
+    const createdLeagues = [];
+
+    for (const leagueData of testLeagues) {
+      try {
+        console.log('Creating test league:', leagueData.name);
+        const newLeague = await createLeague(leagueData, userId, userName, userEmail);
+        createdLeagues.push(newLeague);
+        console.log('Created test league:', newLeague.name, 'ID:', newLeague.id);
+      } catch (error) {
+        console.error('Error creating test league:', leagueData.name, error);
+      }
+    }
+
+    return createdLeagues;
+  } catch (error) {
+    console.error('Error creating test leagues:', error);
+    throw error;
+  }
+};
+
+// Firestore kurallarını test etme fonksiyonu
+export const testFirestoreAccess = async () => {
+  try {
+    console.log('Testing Firestore access...');
+    const leagues = await getPublicLeagues(5);
+    console.log('Firestore access successful. Found leagues:', leagues.length);
+
+    return {
+      success: true,
+      leagueCount: leagues.length,
+      leagues: leagues.map(l => ({ id: l.id, name: l.name, memberCount: l.memberCount }))
+    };
+  } catch (error) {
+    console.error('Firestore access test failed:', error);
+    return {
+      success: false,
+      error: error.message,
+      code: error.code
+    };
   }
 };
 

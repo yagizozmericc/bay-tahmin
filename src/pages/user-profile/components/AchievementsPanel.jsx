@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 
-const AchievementsPanel = ({ achievements }) => {
+const AchievementsPanel = ({ achievements, onRefresh, isRefreshing }) => {
   const [selectedCategory, setSelectedCategory] = useState('all');
 
   const categories = [
@@ -13,76 +13,8 @@ const AchievementsPanel = ({ achievements }) => {
     { id: 'social', label: 'Social', icon: 'Users' }
   ];
 
-  const achievementsList = [
-    {
-      id: 1,
-      title: 'First Prediction',
-      description: 'Made your first match prediction',
-      category: 'predictions',
-      icon: 'Target',
-      unlocked: true,
-      unlockedDate: '2024-01-15',
-      rarity: 'common',
-      points: 10
-    },
-    {
-      id: 2,
-      title: 'Perfect Week',
-      description: 'Got all predictions correct in a single week',
-      category: 'accuracy',
-      icon: 'Star',
-      unlocked: true,
-      unlockedDate: '2024-02-03',
-      rarity: 'rare',
-      points: 100
-    },
-    {
-      id: 3,
-      title: 'Hot Streak',
-      description: 'Achieved a 10-match correct prediction streak',
-      category: 'streaks',
-      icon: 'Flame',
-      unlocked: true,
-      unlockedDate: '2024-02-20',
-      rarity: 'epic',
-      points: 250
-    },
-    {
-      id: 4,
-      title: 'Century Club',
-      description: 'Made 100 predictions',
-      category: 'predictions',
-      icon: 'Trophy',
-      unlocked: true,
-      unlockedDate: '2024-03-10',
-      rarity: 'rare',
-      points: 150
-    },
-    {
-      id: 5,
-      title: 'League Master',
-      description: 'Won first place in a league',
-      category: 'social',
-      icon: 'Crown',
-      unlocked: false,
-      rarity: 'legendary',
-      points: 500,
-      progress: 75,
-      requirement: 'Win a league competition'
-    },
-    {
-      id: 6,
-      title: 'Prediction Prodigy',
-      description: 'Achieve 90% accuracy over 50 predictions',
-      category: 'accuracy',
-      icon: 'Zap',
-      unlocked: false,
-      rarity: 'epic',
-      points: 300,
-      progress: 45,
-      requirement: 'Current accuracy: 73.2%'
-    }
-  ];
+  // Use real achievement data from props, with fallback to empty array
+  const achievementsList = achievements?.achievements || [];
 
   const filteredAchievements = selectedCategory === 'all' 
     ? achievementsList 
@@ -115,6 +47,32 @@ const AchievementsPanel = ({ achievements }) => {
 
   return (
     <div className="space-y-6">
+      {/* Header with Refresh Button */}
+      {onRefresh && (
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">Achievements</h2>
+            {achievements?.lastCalculated && (
+              <p className="text-sm text-muted-foreground">
+                Last updated: {new Date(achievements.lastCalculated).toLocaleString()}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className="flex items-center space-x-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Icon
+              name="RefreshCw"
+              size={16}
+              className={isRefreshing ? 'animate-spin' : ''}
+            />
+            <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
+        </div>
+      )}
+
       {/* Achievement Summary */}
       <div className="bg-card border border-border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
