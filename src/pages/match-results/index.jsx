@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Header from '../../components/ui/Header';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
@@ -117,6 +117,61 @@ const ResultCard = ({ match, userPrediction, showPrediction = false }) => {
   );
 };
 
+const RecentScoresList = ({ matches }) => {
+  if (!Array.isArray(matches) || matches.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-lg mb-8">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+        <div className="flex items-center space-x-2">
+          <Icon name="List" size={18} className="text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Latest Turkish Super Lig Scores</h2>
+        </div>
+        <span className="text-sm text-muted-foreground">Last {Math.min(matches.length, 10)} matches</span>
+      </div>
+      <div className="divide-y divide-border">
+        {matches.map((match) => {
+          const kickoffDate = match.kickoffTime ? new Date(match.kickoffTime) : null;
+
+          return (
+            <div key={match.id} className="flex flex-col md:flex-row md:items-center md:justify-between px-6 py-4 gap-4">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">{match.homeTeam?.name}</p>
+                {kickoffDate && (
+                  <p className="text-xs text-muted-foreground">
+                    {kickoffDate.toLocaleDateString('en-GB', { dateStyle: 'medium' })}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-center space-x-4">
+                <div className="text-center">
+                  <p className="text-lg font-semibold text-foreground">{match.finalScore?.home ?? '-'}</p>
+                  <p className="text-xs text-muted-foreground">Home</p>
+                </div>
+                <span className="text-sm font-medium text-muted-foreground">-</span>
+                <div className="text-center">
+                  <p className="text-lg font-semibold text-foreground">{match.finalScore?.away ?? '-'}</p>
+                  <p className="text-xs text-muted-foreground">Away</p>
+                </div>
+              </div>
+
+              <div className="flex-1 text-left md:text-right">
+                <p className="text-sm font-medium text-foreground">{match.awayTeam?.name}</p>
+                {match.venue && (
+                  <p className="text-xs text-muted-foreground">{match.venue}</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const MatchResults = () => {
   const { user, isAuthenticated } = useAuth();
   const [predictions, setPredictions] = useState({});
@@ -207,6 +262,12 @@ const MatchResults = () => {
   const exactScores = Object.values(predictions).filter(pred =>
     pred.evaluation?.exactScore
   ).length;
+
+  const turkishLeagueScores = useMemo(() => {
+    return recentMatches
+      .filter(match => match?.finalScore && match.finalScore.home !== null && match.finalScore.away !== null)
+      .slice(0, 10);
+  }, [recentMatches]);
 
   return (
     <>
@@ -302,6 +363,10 @@ const MatchResults = () => {
                 <p className="text-xs text-muted-foreground">Found {testResult.eventCount} events</p>
               )}
             </div>
+          )}
+
+          {!loading && !error && turkishLeagueScores.length > 0 && (
+            <RecentScoresList matches={turkishLeagueScores} />
           )}
 
           {error && (

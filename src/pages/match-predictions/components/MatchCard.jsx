@@ -142,14 +142,14 @@ const MatchCard = ({
   };
 
   const getCompetitionBadge = () => {
-    const isChampionsLeague = match?.competitionCode === COMPETITIONS.CHAMPIONS_LEAGUE
-      || (match?.competition || '').toLowerCase().includes('champions');
-    const badgeClass = isChampionsLeague ? 'bg-blue-600 text-white' : 'bg-red-600 text-white';
+    const isSuperLig = match?.competitionCode === COMPETITIONS.TURKISH_SUPER_LEAGUE
+      || (match?.competition || '').toLowerCase().includes('super lig');
+    const badgeClass = isSuperLig ? 'bg-red-600 text-white' : 'bg-muted text-foreground';
 
     return (
       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${badgeClass}`}>
-        <Icon name="Trophy" size={12} className="mr-1" />
-        {match?.competition}
+        <Icon name={isSuperLig ? 'Flag' : 'Trophy'} size={12} className="mr-1" />
+        {match?.competition || (isSuperLig ? 'Turkish Super Lig' : 'Match')}
       </span>
     );
   };

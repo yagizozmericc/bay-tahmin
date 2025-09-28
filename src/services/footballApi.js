@@ -1,4 +1,4 @@
-﻿const env = import.meta.env || {};
+const env = import.meta.env || {};
 
 const RAW_BASE_URL = env.VITE_THESPORTSDB_API_URL || 'https://www.thesportsdb.com/api/v1/json';
 const BASE_URL = RAW_BASE_URL.replace(/\/$/, '');
@@ -110,19 +110,23 @@ const eventMatchesLeague = (event, league) => {
   }
 
   const leagueNames = buildLeagueNames(league);
-
-  if (!leagueNames.length) {
-    return false;
-  }
-
   const eventNames = [
     event.strLeague,
     event.strLeagueAlternate
   ].map(normalizeText);
 
-  return eventNames.some((value) => 
-    value && leagueNames.some((name) => value.includes(name))
-  );
+  if (leagueNames.length && eventNames.some((value) => value && leagueNames.some((name) => value.includes(name)))) {
+    return true;
+  }
+
+  const eventCountry = normalizeText(event.strCountry);
+  const leagueCountry = normalizeText(league.country);
+  if (eventCountry && leagueCountry && eventCountry === leagueCountry) {
+    return true;
+  }
+
+  // TheSportsDB free tier sometimes returns mismatched league metadata; reject mismatched events.
+  return false;
 };
 
 const mapEventToMatch = (event, league) => {
@@ -136,7 +140,11 @@ const mapEventToMatch = (event, league) => {
     return null;
   }
 
-  const competitionName = (event.strLeague || event.strLeagueAlternate || league.name || '').trim();
+  const rawCompetitionName = (event.strLeague || event.strLeagueAlternate || '').trim();
+  const normalizedCompetition = normalizeText(rawCompetitionName);
+  const leagueNames = buildLeagueNames(league);
+  const hasMatchingName = normalizedCompetition && leagueNames.some((name) => normalizedCompetition.includes(name));
+  const competitionName = hasMatchingName ? rawCompetitionName : (league?.name || rawCompetitionName || '');
 
   return {
     id: event.idEvent,
@@ -193,11 +201,99 @@ const getCurrentSeasonIdentifier = () => {
   return `${seasonStartYear}-${seasonStartYear + 1}`;
 };
 
+const sanitizeSeason = (value) => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const getPreviousSeasonIdentifier = (season) => {
+  const sanitized = sanitizeSeason(season);
+
+  if (!sanitized || !sanitized.includes('-')) {
+    return null;
+  }
+
+  const [start] = sanitized.split('-');
+  const startYear = Number(start);
+
+  if (Number.isNaN(startYear)) {
+    return null;
+  }
+
+  return `${startYear - 1}-${startYear}`;
+};
 class FootballApiClient {
   constructor() {
     this.baseURL = API_URL;
+    this.leagueSeasonCache = new Map();
   }
 
+  async getSeasonCandidates(league, seasonOverride) {
+    const candidates = new Set();
+    const addSeason = (value, includePrevious = false) => {
+      const sanitized = sanitizeSeason(value);
+
+      if (!sanitized) {
+        return;
+      }
+
+      if (!candidates.has(sanitized)) {
+        candidates.add(sanitized);
+      }
+
+      if (includePrevious) {
+        const previous = getPreviousSeasonIdentifier(sanitized);
+
+        if (previous && !candidates.has(previous)) {
+          candidates.add(previous);
+        }
+      }
+    };
+
+    if (seasonOverride) {
+      addSeason(seasonOverride, true);
+    }
+
+    if (Array.isArray(league?.seasonHints)) {
+      league.seasonHints.forEach((hint) => addSeason(hint, true));
+    }
+
+    if (this.leagueSeasonCache.has(league.id)) {
+      const cachedSeason = this.leagueSeasonCache.get(league.id);
+      if (cachedSeason) {
+        addSeason(cachedSeason, true);
+      }
+    } else {
+      try {
+        const lookup = await this.request(`/lookupleague.php?id=${league.id}`, {}, 1);
+        const leagueData = Array.isArray(lookup?.leagues) ? lookup.leagues[0] : null;
+        const currentSeason = sanitizeSeason(leagueData?.strCurrentSeason);
+
+        if (currentSeason) {
+          this.leagueSeasonCache.set(league.id, currentSeason);
+          addSeason(currentSeason, true);
+        } else {
+          this.leagueSeasonCache.set(league.id, null);
+        }
+      } catch (error) {
+        console.warn(`[footballApi] League lookup failed for ${league.slug}:`, error.message);
+        this.leagueSeasonCache.set(league.id, null);
+      }
+    }
+
+    const derivedSeason = getCurrentSeasonIdentifier();
+    addSeason(derivedSeason, true);
+
+    if (candidates.size === 0) {
+      return [derivedSeason];
+    }
+
+    return Array.from(candidates);
+  }
   async request(endpoint, options = {}, retries = 3) {
     const url = `${this.baseURL}${ensureLeadingSlash(endpoint)}`;
     let lastError;
@@ -364,6 +460,7 @@ class FootballApiClient {
       ? filters.competitions
       : DEFAULT_COMPETITIONS;
 
+    const limit = typeof filters.limit === 'number' ? Math.max(filters.limit, 0) : null;
     const results = [];
 
     for (const slug of competitions) {
@@ -373,43 +470,94 @@ class FootballApiClient {
         continue;
       }
 
-      const response = await this.request(`/eventspastleague.php?id=${league.id}`);
-      const events = Array.isArray(response?.events) ? response.events : [];
+      const seasonCandidates = await this.getSeasonCandidates(league, filters.season);
 
-      events.forEach((event) => {
-        if (!eventMatchesLeague(event, league)) {
-          return;
+      for (const season of seasonCandidates) {
+        if (!season) {
+          continue;
         }
 
-        const match = mapEventToMatch(event, league);
+        const response = await this.request(`/eventsseason.php?id=${league.id}&s=${encodeURIComponent(season)}`);
+        const events = Array.isArray(response?.events) ? response.events : [];
 
-        if (match) {
-          results.push({
-            ...match,
-            status: 'FINISHED',
-            finalScore: {
-              home: event.intHomeScore !== null ? Number(event.intHomeScore) : null,
-              away: event.intAwayScore !== null ? Number(event.intAwayScore) : null
-            },
-            // Keep the old format for backwards compatibility
-            score: {
-              home: event.intHomeScore !== null ? Number(event.intHomeScore) : null,
-              away: event.intAwayScore !== null ? Number(event.intAwayScore) : null
+        if (!events.length) {
+          continue;
+        }
+
+        const finishedMatches = events
+          .filter((event) => eventMatchesLeague(event, league))
+          .map((event) => {
+            const hasScores = event.intHomeScore !== null && event.intHomeScore !== '' &&
+              event.intAwayScore !== null && event.intAwayScore !== '';
+
+            if (!hasScores) {
+              return null;
             }
-          });
+
+            const match = mapEventToMatch(event, league);
+
+            if (!match) {
+              return null;
+            }
+
+            const homeScore = Number(event.intHomeScore);
+            const awayScore = Number(event.intAwayScore);
+
+            if (Number.isNaN(homeScore) || Number.isNaN(awayScore)) {
+              return null;
+            }
+
+            return {
+              ...match,
+              status: 'FINISHED',
+              finalScore: {
+                home: homeScore,
+                away: awayScore
+              },
+              // Keep the old format for backwards compatibility
+              score: {
+                home: homeScore,
+                away: awayScore
+              }
+            };
+          })
+          .filter(Boolean)
+          .sort((a, b) => new Date(b.kickoffTime) - new Date(a.kickoffTime));
+
+        if (!finishedMatches.length) {
+          continue;
         }
-      });
+
+        if (limit) {
+          const remaining = limit - results.length;
+
+          if (remaining <= 0) {
+            break;
+          }
+
+          results.push(...finishedMatches.slice(0, remaining));
+        } else {
+          results.push(...finishedMatches);
+        }
+
+        if (!limit || results.length >= limit) {
+          break;
+        }
+      }
+
+      if (limit && results.length >= limit) {
+        break;
+      }
     }
 
     results.sort((a, b) => new Date(b.kickoffTime) - new Date(a.kickoffTime));
 
-    if (typeof filters.limit === 'number') {
-      return results.slice(0, filters.limit);
+    if (limit) {
+      return results.slice(0, limit);
     }
 
     return results;
   }
-
   async getEventResult(eventId) {
     try {
       if (!eventId) {
@@ -529,3 +677,22 @@ export const {
   getChampionsLeagueTable,
   testApiAccess
 } = footballApi;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -7,7 +7,6 @@ import { COMPETITIONS } from '../../../hooks/useMatches';
 const FilterControls = ({ filters, onFilterChange, onClearFilters }) => {
   const competitionOptions = [
     { value: 'all', label: 'All Competitions' },
-    { value: COMPETITIONS.CHAMPIONS_LEAGUE, label: 'UEFA Champions League' },
     { value: COMPETITIONS.TURKISH_SUPER_LEAGUE, label: 'Turkish Super Lig' }
   ];
 
@@ -115,16 +114,6 @@ const FilterControls = ({ filters, onFilterChange, onClearFilters }) => {
           iconPosition="left"
         >
           Not Predicted
-        </Button>
-
-        <Button
-          variant={filters?.competition === COMPETITIONS.CHAMPIONS_LEAGUE ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => onFilterChange('competition', filters?.competition === COMPETITIONS.CHAMPIONS_LEAGUE ? 'all' : COMPETITIONS.CHAMPIONS_LEAGUE)}
-          iconName="Trophy"
-          iconPosition="left"
-        >
-          Champions League
         </Button>
 
         <Button

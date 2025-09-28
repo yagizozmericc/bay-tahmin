@@ -15,8 +15,7 @@ import { matchResultCacheService } from '../../services/matchResultCacheService'
 import { isActivePrediction } from '../../utils/predictionUtils';
 
 const DEFAULT_COMPETITIONS = [
-  COMPETITIONS.TURKISH_SUPER_LEAGUE,
-  COMPETITIONS.CHAMPIONS_LEAGUE
+  COMPETITIONS.TURKISH_SUPER_LEAGUE
 ];
 
 const AUTO_SAVE_DELAY = 800;
@@ -91,9 +90,11 @@ const MatchPredictions = () => {
   const autoSaveTimerRef = useRef(null);
   const feedbackTimerRef = useRef(null);
 
-  const selectedCompetitions = filters.competition === 'all'
-    ? DEFAULT_COMPETITIONS
-    : [filters.competition];
+  const selectedCompetitions = useMemo(() => (
+    filters.competition === 'all'
+      ? DEFAULT_COMPETITIONS
+      : [filters.competition]
+  ), [filters.competition]);
 
   const apiFilters = useMemo(() => ({ competitions: selectedCompetitions }), [selectedCompetitions]);
 
